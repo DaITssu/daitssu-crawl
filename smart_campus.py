@@ -1,9 +1,9 @@
 import requests
 
 class smart_campus:
-    def get_attendence_data(token):
+    def get_attendence_data(token, subjectNum):
+        subject = subjectNum
         print("과목코드 입력")
-        subject = input()
         url = "https://canvas.ssu.ac.kr/learningx/api/v1/courses/"+subject+"/attendance_items/summary?only_use_attendance=true"
 
 
@@ -41,6 +41,11 @@ class smart_campus:
             for module in data:
                 course_title = module["name"]
                 course_id = module["id"]
+                if (cnt < 11):
+                    course_dict[course_id] = color_list[cnt - 1]
+                else:
+                    course_dict[course_id] = over_color
+                cnt += 1
                 print(f"수강중인 과목 이름 : {course_title} \n과목 id : {course_id}")
                 print("-------------------------------------------------------------------------------------------")
         else:
