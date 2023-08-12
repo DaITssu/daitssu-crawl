@@ -1,6 +1,9 @@
 import requests
 
 class smart_campus:
+    color_list = ['FF8DC4', 'FF7171', 'FF9E68', 'FFD057', 'B7E532', '35CC7B', '73E4DE', '6197FF', 'B69BE3', 'A48172']
+    over_color = 'BDBDBD'
+    course_dict = {}
     def get_attendence_data(token, subjectNum):
         subject = subjectNum
         print("과목코드 입력")
@@ -35,7 +38,7 @@ class smart_campus:
         }
 
         response = requests.get(url, headers=headers)
-
+        cnt = 1
         if response.status_code == 200:
             data = response.json()
             for module in data:
