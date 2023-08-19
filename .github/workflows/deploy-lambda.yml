@@ -1,0 +1,42 @@
+name: Deploy to Amazon Lambda CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  AWS_REGION: ap-northeast-2
+  DEV_LAMBDA_FUNCTION_NAME: dev-daitssu-crawl
+  PROD_LAMBDA_FUNCTION_NAME: daitssu-crawl
+  LAMBDA_HANDLER: lambda_function.lambda_handler
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: main
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Python setup
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Packaging Lambda function
+        run: zip -r lambda_function.zip . -x "*.git*" "*.github*"
+
+      - name: Update Lambda (dev)
+        run: aws lambda update-function-code --function-name=${{ env.DEV_LAMBDA_FUNCTION_NAME }} --zip-file=fileb://lambda_function.zip
+
+      - name: Update Lambda (prod)
+        run: aws lambda update-function-code --function-name=${{ env.PROD_LAMBDA_FUNCTION_NAME }} --zip-file=fileb://lambda_function.zip
