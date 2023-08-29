@@ -22,24 +22,6 @@ class SmartCampus:
     cursor.execute("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_user;")
 
 
-    def create_data_table(self):
-        # smart_campus_data 테이블 생성 쿼리 실행
-        create_data_table_query = """
-            CREATE TABLE IF NOT EXISTS smart_campus_data (
-                id SERIAL PRIMARY KEY,
-                course_id INTEGER UNIQUE NOT NULL,
-                course_title TEXT NOT NULL,
-                attendance_status TEXT,
-                unlock_at TIMESTAMP,
-                due_at TIMESTAMP,
-                late_at TIMESTAMP,
-                video_url TEXT,
-                color_code TEXT NOT NULL
-            )
-        """
-        self.cursor.execute(create_data_table_query)
-        self.conn.commit()
-
     def save_subject_data(self, course_id, course_title, attendance_status, unlock_at, due_at, late_at, video_url,
                           color_code):
         # 과목 정보를 smart_campus_data 테이블에 저장
