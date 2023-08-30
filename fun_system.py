@@ -23,30 +23,9 @@ def fus_system_crawling(value):
         port=5432,
     )
 
-    # conntect가 잘 됐는지 확인하는 코드
-    print(conn)
-
     cursor = conn.cursor()
 
-    # 사용자에게 스키마 또는 테이블에 대한 권한 부여
-    cursor.execute("GRANT ALL PRIVILEGES ON SCHEMA public TO your_user;")
-    cursor.execute("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_user;")
 
-    # 프로그램 데이터를 저장할 테이블 생성 (이미 있는 경우에는 무시)
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS dev_daitssu (
-            id SERIAL PRIMARY KEY,
-            title TEXT,
-            url TEXT,
-            image_url TEXT,
-            created_time TEXT,
-            updated_time TEXT,
-            content TEXT
-        )
-    """
-    )
-    conn.commit()
 
     # 각 프로그램 정보를 크롤링하여 데이터베이스에 삽입
     for data in tag_ul.find_all("li"):
