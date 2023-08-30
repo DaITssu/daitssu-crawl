@@ -1,7 +1,6 @@
 import json
 import requests
 from bs4 import BeautifulSoup
-from enum import Enum, auto
 from datetime import date
 from sqlalchemy import create_engine
 from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime, TEXT
@@ -24,26 +23,11 @@ class NoticeDB(Base):
     title = Column(TEXT)
     department_id = Column(Integer)
     content = Column(TEXT)
-    category = Column(CHAR(32))  # 카테고리 Enum방식이면 db에 어떻게 저장할지 생각
+    category = Column(CHAR(32))
     image_url = Column(ARRAY(TEXT))
     file_url = Column(ARRAY(TEXT))
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
-
-
-class Category(Enum):
-    # Category 용 Enum
-    school = auto()  # 학사
-    scholarship = auto()  # 장학
-    international = auto()  # 국제 교류
-    foreigner = auto()  # 외국인 유학생
-    employment = auto()  # 채용
-    event = auto()  # 비교과, 행사
-    faculty_recruitment = auto()  # 교원 채용
-    teaching_profession = auto()  # 교직
-    volunteer = auto()  # 봉사
-    etc = auto()  # 기타
-    covid19 = auto()  # 코로나 19 관련 소식
 
 
 class Content:  # Crawling 결과를 담는 객체
@@ -97,17 +81,17 @@ class Content:  # Crawling 결과를 담는 객체
 
     def __init_category(self, column):  # 카테고리 크롤링
         category_dict = {
-            "학사": 1,
-            "장학": 2,
-            "국제교류": 3,
-            "외국인유학생": 4,
-            "채용": 5,
-            "비교과·행사": 6,
-            "교원채용": 7,
-            "봉사": 8,
-            "교직": 9,
-            "기타": 10,
-            "코로나19관련소식": 11
+            "학사": "학사",
+            "장학": "장학",
+            "국제교류": "국제교류",
+            "외국인유학생": "외국인유학생",
+            "채용": "채용",
+            "비교과·행사": "비교과·행사",
+            "교원채용": "교원채용",
+            "봉사": "봉사",
+            "교직": "교직",
+            "기타": "기타",
+            "코로나19관련소식": "코로나19관련소식"
         }
         target = column.find('span', class_='label')
         self.category = category_dict.get(target.text.strip())
@@ -202,6 +186,3 @@ def ssu_catch_crawling(value):
                                  category=content.category,
                                  updated_at=content.updated_date))
         session.commit()
-
-
-ssu_catch_crawling(1)
