@@ -125,21 +125,6 @@ class Content:  # Crawling 결과를 담는 객체
                     self.img_link
                     )
 
-    def to_dict(self):
-        return {
-            "title": self.title,
-            "category": self.category.name if self.category else None,
-            "views": self.views,
-            "created_date": self.create_date.isoformat(),
-            "file_link": self.file_link,
-            "department": self.department,
-            "contents": self.contents,
-            "img_link": self.img_link
-        }
-
-    def to_json(self):
-        return json.dumps(self.to_dict())
-
 
 def ssu_catch_crawling(value):
     page = 1  # 1~
