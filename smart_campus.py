@@ -1,17 +1,36 @@
+from django.db import models
 import requests
 
-class smart_campus:
-    color_list = ['FF8DC4', 'FF7171', 'FF9E68', 'FFD057', 'B7E532', '35CC7B', '73E4DE', '6197FF', 'B69BE3', 'A48172'] #과목별로 짝지어질 색상코드
-    over_color = 'BDBDBD' #11개 이상의 과목을 받아오는 경우 모두 회색의 색상을 중복으로 부여받기에 11개 이상이 되었을 때 과목과 짝지어질 색상의 코
-    course_dict = {} #아래의 과목 코드를 받아오는 함수에서 받아온 과목코드와 색상 코드를 묶어서 저장할 dictionary
-    
-    def get_subject(token): #토큰을 받아 학기에 수강 중인 과목의 이름과 과목 코드를 출력하는(받아오는) 함수
+class SmartCampusData(models.Model): # 과목 정보를 받아오고 과목 코드에 따라 과목의 이름, 색상 코드 저장
+    course_id = models.IntegerField(primary_key=True)
+    course_title = models.CharField(max_length=255)
+    color_code = models.CharField(max_length=10)
+
+class AttendanceRecord(models.Model): # 과목 코드에 따라 출결 정보를 저장하는 레코드
+    course = models.ForeignKey(SmartCampusData, on_delete=models.CASCADE)
+    attendance_id = models.IntegerField()
+    attendance_status = models.CharField(max_length=50)
+
+class DateRecord(models.Model): # 과목 코드에 따라 강의 및 과제의 기한을 저장하는 레코드
+    course = models.ForeignKey(SmartCampusData, on_delete=models.CASCADE)
+    module_item_id = models.IntegerField(unique=True)
+    module_item_title = models.CharField(max_length=255)
+    unlock_at = models.DateTimeField(null=True)
+    due_at = models.DateTimeField(null=True)
+    late_at = models.DateTimeField(null=True)
+    video_url = models.URLField(null=True)
+
+class SmartCampus:
+    color_list = ['FF8DC4', 'FF7171', 'FF9E68', 'FFD057', 'B7E532', '35CC7B', '73E4DE', '6197FF', 'B69BE3', 'A48172']
+    over_color = 'BDBDBD'
+    # 과목 코드에 따라 지정될 색상 코드
+    def save_subject_data(self, course_id, course_title, color_code):
+        SmartCampusData.objects.create(course_id=course_id, course_title=course_title, color_code=color_code)
+        # 학기별로 수강중인 과목을 저장하는 함수
+
+    def get_subject(self, token): # 토큰을 받아 해당 학기에 수강중인 과목의 과목 코드, 제목을 받고 색상코드를 부여하는 함수
         url = "https://canvas.ssu.ac.kr/learningx/api/v1/learn_activities/courses?term_ids[]=26"
-
-        headers = {
-            "Authorization": "Bearer " + token
-        }
-
+        headers = {"Authorization": "Bearer " + token}
         response = requests.get(url, headers=headers)
         cnt = 1
         if response.status_code == 200:
@@ -19,84 +38,57 @@ class smart_campus:
             for module in data:
                 course_title = module["name"]
                 course_id = module["id"]
-                if (cnt < 11): #받아온 과목의 수가 10개 이하라면 color_list에 저장된 색상 코드를 순서대로 받아와 과목 코드와 묶어 저장
-                    course_dict[course_id] = color_list[cnt - 1]
-                else: #이후 과목이 11개 이상이 된다면 이후의 모든 과목의 짝지어질 색상을 회색의 색상코드로 묶는다
-                    course_dict[course_id] = over_color
+                color_code = self.color_list[cnt - 1] if cnt < 11 else self.over_color
+                self.save_subject_data(course_id, course_title, color_code)
                 cnt += 1
-                print(f"수강중인 과목 이름 : {course_title} \n과목 id : {course_id}")
-                print("-------------------------------------------------------------------------------------------")
-        else:
-            print("요청에 실패했습니다. 응답 코드:", response.status_code)
 
-    
-
-    def get_attendence_data(token, subjectNum): #토큰과 과목 코드를 전달 받음으로 보고자하는 과목의 출결 상태를 출력하는(받아오는) 함수
-        subject = subjectNum
-        print("과목코드 입력")
-        url = "https://canvas.ssu.ac.kr/learningx/api/v1/courses/"+subject+"/attendance_items/summary?only_use_attendance=true"
-
-
-        headers = {
-            "Authorization": "Bearer " + token
-        }
-
+    def get_attendance_data(self, token, subject_num): # 과목 코드를 기준으로 출결 상태를 받아와 저장하는 함수
+        subject = subject_num
+        url = f"https://canvas.ssu.ac.kr/learningx/api/v1/courses/{subject}/attendance_items/summary?only_use_attendance=true"
+        headers = {"Authorization": "Bearer " + token}
         response = requests.get(url, headers=headers)
-
         if response.status_code == 200:
             data = response.json()
             attendance_statuses = data['attendance_summaries']
             for item_id, attendance in attendance_statuses.items():
                 attendance_status = attendance['attendance_status']
-                if attendance_status =="attendance":
-                    print(f"출결상태: 출석")
-                elif attendance_status =="late":
-                    print(f"출결상태: 지각")
-                else:
-                    print(f"출결상태: 결석")
+                try:
+                    existing_data = AttendanceRecord.objects.get(course__course_id=subject_num,
+                                                                attendance_status=attendance_status, attendance_id=item_id)
+                    pass
+                except AttendanceRecord.DoesNotExist:
+                    self.save_attendance_data(subject_num, item_id, attendance_status)
         else:
             print("요청에 실패했습니다. 응답 코드:", response.status_code)
 
-    
-    def get_date(token, subjectNum): #토큰과 과목코드를 전달 받음으로 해당 과목의 동영상 강의의 기한과 url, 혹은 과제의 기한을 출력하는(받아오는) 함수
-        subject = subjectNum
-        url = "https://canvas.ssu.ac.kr/learningx/api/v1/courses/" + subject + "/modules?include_detail=true"
+    def save_attendance_data(self, course_id, item_id, attendance_status): # 출결상태를 레코드에 저장하는 함수
+        course = SmartCampusData.objects.get(course_id=course_id)
+        AttendanceRecord.objects.create(course=course, attendance_id=item_id, attendance_status=attendance_status)
 
-        headers = {
-            "Authorization": "Bearer " + token
-        }
-
+    def get_date(self, token, subject_num): # 과목 코드에 따라 강의의 동영상 강의 url, 과제의 제출 및 마감 기한등을 받아오고 저장하는 함수
+        subject = subject_num
+        url = f"https://canvas.ssu.ac.kr/learningx/api/v1/courses/{subject}/modules?include_detail=true"
+        headers = {"Authorization": "Bearer " + token}
         response = requests.get(url, headers=headers)
-
         if response.status_code == 200:
             data = response.json()
             for module in data:
                 module_items = module["module_items"]
                 for item in module_items:
+                    module_item_id = item["module_item_id"]  # 모듈 아이템의 ID
                     title = item["title"]
                     if item["content_type"] == "attendance_item":
                         unlock_at = item["content_data"]["unlock_at"]
                         due_at = item["content_data"]["due_at"]
                         late_at = item["content_data"]["late_at"]
                         video_url = item["content_data"]["item_content_data"]["view_url"]
-                        if late_at is None:
-                            if video_url == "":
-                                print(f"{title} \n시작: {unlock_at} 마감: {due_at}")
-                                print("-----------------------------------------------------------------------")
-                            else:
-                                print(f"{title} \n시작: {unlock_at} 마감: {due_at}\n영상 url: {video_url}")
-                                print("-----------------------------------------------------------------------")
-                        else:
-                            if video_url == "":
-                                print(f"{title} \n시작: {unlock_at} 마감: {due_at} 지각: {late_at}")
-                                print("-----------------------------------------------------------------------")
-                            else:
-                                print(f"{title} \n시작: {unlock_at} 마감: {due_at} 지각: {late_at}\n영상 url: {video_url}")
-                                print("-----------------------------------------------------------------------")
+                        self.save_date_data(subject_num, title, module_item_id, unlock_at, due_at, late_at, video_url)
                     elif item["content_type"] == "assignment":
                         unlock_at = item["content_data"]["unlock_at"]
                         due_at = item["content_data"]["due_at"]
-                        print(f"{title} \n과제 시작일 {unlock_at} 종료일 {due_at}")
-                        print("-----------------------------------------------------------------------")
-        else:
-            print("요청에 실패했습니다. 응답 코드:", response.status_code)
+                        self.save_date_data(subject_num, title, module_item_id, unlock_at, due_at, None, None)
+
+    def save_date_data(self, course_id, title, module_item_id, unlock_at, due_at, late_at, video_url): #받아온 데이터를 레코드에 추가하는 함수
+        course = SmartCampusData.objects.get(course_id=course_id)
+        DateRecord.objects.create(course=course, module_item_title = title, module_item_id=module_item_id,
+                                  unlock_at=unlock_at, due_at=due_at, late_at=late_at, video_url=video_url)
