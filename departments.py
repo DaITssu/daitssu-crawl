@@ -34,7 +34,7 @@ class ComputerNotification(Base):
     content = Column(CHAR(2048))
     category = Column(CHAR(32))
     image_url = Column(ARRAY(CHAR(2048)))
-    file_url = Column(CHAR(2048))  # file_url을 ARRYAY로 했을 때, 오류 발생. 그냥 문자열로 하니까 성공. 확인 필요
+    file_url = Column(ARRAY(CHAR(2048)))  # file_url을 ARRYAY로 했을 때, 오류 발생. 그냥 문자열로 하니까 성공. 확인 필요
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
 
@@ -54,13 +54,13 @@ class ComputerNotification(Base):
         self.content = content[2].text.strip()[:2048]  # content
         file_container = content[3].find(class_='file')
         files = None
-        file_link = ""
+        file_link = []
         if file_container is not None:
             files = file_container.findAll('a')
         if files is not None:
             for file in files:
                 link = ("http://cse.ssu.ac.kr" + file['href'])
-                file_link = link
+                file_link.append(link)
         self.file_url = file_link
         self.title = children[1].text.strip()
         self.image_url = []
@@ -106,3 +106,6 @@ def computer_department_crawling(value):
 
 def departments_crawling(value):
     computer_department_crawling(value)
+
+
+departments_crawling(1)
