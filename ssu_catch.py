@@ -1,28 +1,42 @@
 import json
 import requests
 from bs4 import BeautifulSoup
-from enum import Enum, auto
 from datetime import date
+from sqlalchemy import create_engine, MetaData, Table
+from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime, TEXT
+from sqlalchemy.orm import sessionmaker, declarative_base
+import sqlalchemy
+import dev_db
 
 URL = "https://scatch.ssu.ac.kr/%ea%b3%b5%ec%a7%80%ec%82%ac%ed%95%ad"
 
+metadata_obj = MetaData()
+Base = declarative_base()
 
-class Category(Enum):
-    # Category 용 Enum
-    school = auto()  # 학사
-    scholarship = auto()  # 장학
-    international = auto()  # 국제 교류
-    foreigner = auto()  # 외국인 유학생
-    employment = auto()  # 채용
-    event = auto()  # 비교과, 행사
-    faculty_recruitment = auto()  # 교원 채용
-    teaching_profession = auto()  # 교직
-    volunteer = auto()  # 봉사
-    etc = auto()  # 기타
-    covid19 = auto()  # 코로나 19 관련 소식
+db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
+    drivername="postgresql+psycopg2",
+    username=dev_db.dev_user_name,
+    password=dev_db.dev_db_pw,
+    host=dev_db.dev_host,
+    database=dev_db.dev_db_name
+)
+engine = create_engine(db_url)  # db 연결
+session_maker = sessionmaker()
+session_maker.configure(bind=engine)
 
 
-class Content:  # Crawling 결과를 담는 객체
+class Content(Base):  # Crawling 결과를 담는 객체
+    __tablename__ = "notice"
+    __table_args__ = {"schema": "notice"}
+    id = Column(Integer, primary_key=True)
+    title = Column(CHAR(1024))
+    department_id = Column(Integer)
+    content = Column(CHAR(2048))
+    category = Column(CHAR(32))
+    image_url = Column(ARRAY(CHAR(2048)))
+    file_url = Column(ARRAY(CHAR(2048)))
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
 
     def __init__(self, content):
         lists = list(content.children)
@@ -40,18 +54,16 @@ class Content:  # Crawling 결과를 담는 객체
         current_column = next(columns)
         self.__init_department(lists[current_column])
 
-        current_column = next(columns)
-        self.__init_views(lists[current_column])
-
     def __init_date(self, column):  # 생성 시각 크롤링
         target = column.find('div')
         date_arr = [int(item) for item in target.text.strip().split(".")]
-        self.create_date = date(date_arr[0], date_arr[1], date_arr[2])
+        self.created_at = date(date_arr[0], date_arr[1], date_arr[2])
+        self.updated_at = date(date_arr[0], date_arr[1], date_arr[2])
 
     def __init_contents(self, column):  # 본문 내용 크롤링
-        self.img_link = []
-        self.contents = ""
-        self.file_link = []
+        self.image_url = []
+        self.content = ""
+        self.file_url = []
 
         target = column.find('a')
         post_url = target['href']
@@ -61,28 +73,28 @@ class Content:  # Crawling 결과를 담는 객체
         for tag in contents.findAll('p'):
             img = tag.find("img", class_=lambda css_class: css_class != "emoji")
             if img:
-                self.img_link.append(img['src'])
+                self.image_url.append(img['src'])
             else:
-                self.contents += BeautifulSoup(tag.text, "lxml").text
+                self.content += BeautifulSoup(tag.text, "lxml").text
         file_urls = contents.find("ul")
         if file_urls:
             links = file_urls.findAll("a")
             for item in links:
-                self.file_link.append(item['href'])
+                self.file_url.append(item['href'])
 
     def __init_category(self, column):  # 카테고리 크롤링
         category_dict = {
-            "학사": Category.school,
-            "장학": Category.scholarship,
-            "국제교류": Category.international,
-            "외국인유학생": Category.foreigner,
-            "채용": Category.employment,
-            "비교과·행사": Category.event,
-            "교원채용": Category.faculty_recruitment,
-            "봉사": Category.volunteer,
-            "교직": Category.teaching_profession,
-            "기타": Category.etc,
-            "코로나19관련소식": Category.covid19
+            "학사": "학사",
+            "장학": "장학",
+            "국제교류": "국제교류",
+            "외국인유학생": "외국인유학생",
+            "채용": "채용",
+            "비교과·행사": "비교과·행사",
+            "교원채용": "교원채용",
+            "봉사": "봉사",
+            "교직": "교직",
+            "기타": "기타",
+            "코로나19관련소식": "코로나19관련소식"
         }
         target = column.find('span', class_='label')
         self.category = category_dict.get(target.text.strip())
@@ -92,44 +104,29 @@ class Content:  # Crawling 결과를 담는 객체
         self.title = target.text.strip()
 
     def __init_department(self, column):  # 등록 부서 크롤링
-        self.department = column.text.strip()
-
-    def __init_views(self, column):  # 조회수 크롤링
-        self.views = int(column.text.strip())
+        with engine.connect() as connect:
+            department_table = Table("department", metadata_obj, schema="main", autoload_with=engine)
+            query = department_table.select().where(department_table.c.name == "슈케치")
+            results = connect.execute(query)
+            for result in results:
+                self.department_id = result.id
 
     def __str__(self) -> str:
         return "title: {0}\n" \
                "category: {1}\n" \
-               "view: {2}\n" \
-               "date: {3}\n" \
-               "link: {4}\n" \
-               "department: {5}\n" \
-               "content: {6}\n" \
-               "img: {7}\n" \
+               "date: {2}\n" \
+               "link: {3}\n" \
+               "department_id: {4}\n" \
+               "content: {5}\n" \
+               "img: {6}\n" \
             .format(self.title,
                     self.category,
-                    self.views,
-                    self.create_date,
-                    self.file_link,
-                    self.department,
-                    self.contents[:200],
-                    self.img_link
+                    self.created_at,
+                    self.file_url,
+                    self.department_id,
+                    self.content[:200],
+                    self.image_url
                     )
-
-    def to_dict(self):
-        return {
-            "title": self.title,
-            "category": self.category.name if self.category else None,
-            "views": self.views,
-            "created_date": self.create_date.isoformat(),
-            "file_link": self.file_link,
-            "department": self.department,
-            "contents": self.contents,
-            "img_link": self.img_link
-        }
-
-    def to_json(self):
-        return json.dumps(self.to_dict())
 
 
 def ssu_catch_crawling(value):
@@ -143,9 +140,14 @@ def ssu_catch_crawling(value):
     content_iterator = iter(content)
     for i in range(3):
         next(content_iterator)
-    content_list = []
-    for (idx, item) in enumerate(content_iterator):
-        if idx % 2 == 0:
-            content_list.append(Content(item.find('div')).to_dict())
 
-    return json.dumps(content_list, indent=4)
+    content_list = []
+    for (idx, item) in enumerate(content_iterator):  # 핵심 크롤링 부분
+        if idx % 2 == 0:
+            content_list.append(Content(item.find('div')))
+
+    with session_maker() as session:
+
+        for content in content_list:
+            session.add(content)
+        session.commit()
