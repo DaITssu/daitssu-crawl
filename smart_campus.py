@@ -106,6 +106,7 @@ class SmartCampus:
 
     #토큰과 과목 코드를 받음으로 해당 과목의 강의의 출결 인정 기간 및 과목의 제출 인정 기간 등의 정보를 받아옴
     def get_date(self, token, subject_num):
+
         subject = subject_num
         url = f"https://canvas.ssu.ac.kr/learningx/api/v1/courses/{subject}/modules?include_detail=true"
         headers = {"Authorization": "Bearer " + token}
@@ -140,3 +141,4 @@ class SmartCampus:
             self.session.commit()
         else:
              print("오류가 발생했습니다.")
+
