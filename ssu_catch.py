@@ -2,35 +2,41 @@ import json
 import requests
 from bs4 import BeautifulSoup
 from datetime import date
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime, TEXT
 from sqlalchemy.orm import sessionmaker, declarative_base
 import sqlalchemy
 import dev_db
 
 URL = "https://scatch.ssu.ac.kr/%ea%b3%b5%ec%a7%80%ec%82%ac%ed%95%ad"
-department_id_dict = {"교수학습혁신센터": 1, "총무감사팀": 2, "국제팀": 3, "기획팀": 4, "사회공헌팀": 5, "장학팀": 6, "학생서비스팀": 7, "정보화팀": 8,
-                      "교무팀": 9, "총무·인사팀": 10, "산학협력진흥팀": 11, "웹마스터": 12, "혁신공유대학 사업추진단": 13, "학사팀": 14, "창업지원단": 15,
-                      "공대 교학팀": 16, "진로취업센터": 17, "현장실습지원센터": 18, "교양교육연구센터": 19}
-# department id 어떻게 할지 생각해야함.
+
+metadata_obj = MetaData()
 Base = declarative_base()
 
+db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
+    drivername="postgresql+psycopg2",
+    username=dev_db.dev_user_name,
+    password=dev_db.dev_db_pw,
+    host=dev_db.dev_host,
+    database=dev_db.dev_db_name
+)
+engine = create_engine(db_url)  # db 연결
+session_maker = sessionmaker()
+session_maker.configure(bind=engine)
 
-class NoticeDB(Base):
+
+class Content(Base):  # Crawling 결과를 담는 객체
     __tablename__ = "notice"
     __table_args__ = {"schema": "notice"}
     id = Column(Integer, primary_key=True)
-    title = Column(TEXT)
+    title = Column(CHAR(1024))
     department_id = Column(Integer)
-    content = Column(TEXT)
+    content = Column(CHAR(2048))
     category = Column(CHAR(32))
-    image_url = Column(ARRAY(TEXT))
-    file_url = Column(ARRAY(TEXT))
+    image_url = Column(ARRAY(CHAR(2048)))
+    file_url = Column(ARRAY(CHAR(2048)))
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
-
-
-class Content:  # Crawling 결과를 담는 객체
 
     def __init__(self, content):
         lists = list(content.children)
@@ -48,19 +54,16 @@ class Content:  # Crawling 결과를 담는 객체
         current_column = next(columns)
         self.__init_department(lists[current_column])
 
-        current_column = next(columns)
-        self.__init_views(lists[current_column])
-
     def __init_date(self, column):  # 생성 시각 크롤링
         target = column.find('div')
         date_arr = [int(item) for item in target.text.strip().split(".")]
-        self.create_date = date(date_arr[0], date_arr[1], date_arr[2])
-        self.updated_date = date(date_arr[0], date_arr[1], date_arr[2])
+        self.created_at = date(date_arr[0], date_arr[1], date_arr[2])
+        self.updated_at = date(date_arr[0], date_arr[1], date_arr[2])
 
     def __init_contents(self, column):  # 본문 내용 크롤링
-        self.img_link = []
-        self.contents = ""
-        self.file_link = []
+        self.image_url = []
+        self.content = ""
+        self.file_url = []
 
         target = column.find('a')
         post_url = target['href']
@@ -70,14 +73,14 @@ class Content:  # Crawling 결과를 담는 객체
         for tag in contents.findAll('p'):
             img = tag.find("img", class_=lambda css_class: css_class != "emoji")
             if img:
-                self.img_link.append(img['src'])
+                self.image_url.append(img['src'])
             else:
-                self.contents += BeautifulSoup(tag.text, "lxml").text
+                self.content += BeautifulSoup(tag.text, "lxml").text
         file_urls = contents.find("ul")
         if file_urls:
             links = file_urls.findAll("a")
             for item in links:
-                self.file_link.append(item['href'])
+                self.file_url.append(item['href'])
 
     def __init_category(self, column):  # 카테고리 크롤링
         category_dict = {
@@ -101,28 +104,28 @@ class Content:  # Crawling 결과를 담는 객체
         self.title = target.text.strip()
 
     def __init_department(self, column):  # 등록 부서 크롤링
-        self.department = department_id_dict.get(column.text.strip())
-
-    def __init_views(self, column):  # 조회수 크롤링
-        self.views = int(column.text.strip())
+        with engine.connect() as connect:
+            department_table = Table("department", metadata_obj, schema="main", autoload_with=engine)
+            query = department_table.select().where(department_table.c.name == "슈케치")
+            results = connect.execute(query)
+            for result in results:
+                self.department_id = result.id
 
     def __str__(self) -> str:
         return "title: {0}\n" \
                "category: {1}\n" \
-               "view: {2}\n" \
-               "date: {3}\n" \
-               "link: {4}\n" \
-               "department: {5}\n" \
-               "content: {6}\n" \
-               "img: {7}\n" \
+               "date: {2}\n" \
+               "link: {3}\n" \
+               "department_id: {4}\n" \
+               "content: {5}\n" \
+               "img: {6}\n" \
             .format(self.title,
                     self.category,
-                    self.views,
-                    self.create_date,
-                    self.file_link,
-                    self.department,
-                    self.contents[:200],
-                    self.img_link
+                    self.created_at,
+                    self.file_url,
+                    self.department_id,
+                    self.content[:200],
+                    self.image_url
                     )
 
 
@@ -137,37 +140,14 @@ def ssu_catch_crawling(value):
     content_iterator = iter(content)
     for i in range(3):
         next(content_iterator)
+
     content_list = []
     for (idx, item) in enumerate(content_iterator):  # 핵심 크롤링 부분
         if idx % 2 == 0:
             content_list.append(Content(item.find('div')))
 
-    db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
-        drivername="postgresql+psycopg2",
-        username=dev_db.dev_user_name,
-        password=dev_db.dev_db_pw,
-        host=dev_db.dev_host,
-        database=dev_db.dev_db_name
-    )
-
-    engine = create_engine(db_url)  # db 연결
-    session_maker = sessionmaker()
-    session_maker.configure(bind=engine)
-
     with session_maker() as session:
 
         for content in content_list:
-            if len(content.contents) >= 2048:
-                print("ERROR!!!!")  # content의 길이가 2048보다 클 경우가 있음.
-                print(len(content.contents))
-                print(content.contents)
-                break
-            session.add(NoticeDB(title=content.title,  # orm 객체 저장.
-                                 department_id=content.department,
-                                 content=content.contents,
-                                 image_url=content.img_link,
-                                 file_url=content.file_link,
-                                 created_at=content.create_date,
-                                 category=content.category,
-                                 updated_at=content.updated_date))
+            session.add(content)
         session.commit()
