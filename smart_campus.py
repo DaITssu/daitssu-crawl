@@ -1,35 +1,63 @@
-from django.db import models
 import requests
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.ext.declarative import declarative_base
+import dev_db
 
-class SmartCampusData(models.Model): # 과목 정보를 받아오고 과목 코드에 따라 과목의 이름, 색상 코드 저장
-    course_id = models.IntegerField(primary_key=True)
-    course_title = models.CharField(max_length=255)
-    color_code = models.CharField(max_length=10)
+db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
+        drivername="postgresql+psycopg2",
+        username=dev_db.dev_user_name,
+        password=dev_db.dev_db_pw,
+        host=dev_db.dev_host,
+        database=dev_db.dev_db_name
+    )
 
-class AttendanceRecord(models.Model): # 과목 코드에 따라 출결 정보를 저장하는 레코드
-    course = models.ForeignKey(SmartCampusData, on_delete=models.CASCADE)
-    attendance_id = models.IntegerField()
-    attendance_status = models.CharField(max_length=50)
+engine = create_engine(db_url)  # db 연결
+session_maker = sessionmaker()
+session_maker.configure(bind=engine)
 
-class DateRecord(models.Model): # 과목 코드에 따라 강의 및 과제의 기한을 저장하는 레코드
-    course = models.ForeignKey(SmartCampusData, on_delete=models.CASCADE)
-    module_item_id = models.IntegerField(unique=True)
-    module_item_title = models.CharField(max_length=255)
-    unlock_at = models.DateTimeField(null=True)
-    due_at = models.DateTimeField(null=True)
-    late_at = models.DateTimeField(null=True)
-    video_url = models.URLField(null=True)
+
+Base = declarative_base()
+
+class SmartCampusData(Base): #과목별 과목 코드와 과목의 이름, 색상 코드를 저장할 부분
+    __tablename__ = 'smart_campus_data'
+
+    course_id = Column(Integer, primary_key=True)
+    course_title = Column(String(255))
+    color_code = Column(String(10))
+
+class AttendanceRecord(Base): #과목별 과목 출결상태를 저장할 부분으로 과목 코드에 맞는 과목에 종속됨
+    __tablename__ = 'attendance_record'
+
+    id = Column(Integer, primary_key=True)
+    course_id = Column(Integer, ForeignKey('smart_campus_data.course_id'))
+    attendance_id = Column(Integer)
+    attendance_status = Column(String(50))
+
+    course = relationship('SmartCampusData', back_populates='attendance_records')
+
+class DateRecord(Base): #과목별 강의 기한 및 과제 기한을 저장할 부분으로 과목 코드에 맞는 과목에 종속됨
+    __tablename__ = 'date_record'
+
+    id = Column(Integer, primary_key=True)
+    course_id = Column(Integer, ForeignKey('smart_campus_data.course_id'))
+    module_item_id = Column(Integer, unique=True)
+    module_item_title = Column(String(255))
+    unlock_at = Column(DateTime, nullable=True)
+    due_at = Column(DateTime, nullable=True)
+    late_at = Column(DateTime, nullable=True)
+    video_url = Column(String)
+
+    course = relationship('SmartCampusData', back_populates='date_records')
+
+
 
 class SmartCampus:
-    color_list = ['FF8DC4', 'FF7171', 'FF9E68', 'FFD057', 'B7E532', '35CC7B', '73E4DE', '6197FF', 'B69BE3', 'A48172']
-    over_color = 'BDBDBD'
-    # 과목 코드에 따라 지정될 색상 코드
-    def save_subject_data(self, course_id, course_title, color_code):
-        SmartCampusData.objects.create(course_id=course_id, course_title=course_title, color_code=color_code)
-        # 학기별로 수강중인 과목을 저장하는 함수
+    def __init__(self, session):
+        self.session = session
 
-    def get_subject(self, token): # 토큰을 받아 해당 학기에 수강중인 과목의 과목 코드, 제목을 받고 색상코드를 부여하는 함수
-        url = "https://canvas.ssu.ac.kr/learningx/api/v1/learn_activities/courses?term_ids[]=26"
+    def get_subject(self, token): #토큰을 보냄으로 학기에 현재 수강중인 과목의 정보를 받아옴
+        url = "https://canvas.ssu.ac.kr/learningx/api/v1/learn_activities/courses?term_ids[]=31"
         headers = {"Authorization": "Bearer " + token}
         response = requests.get(url, headers=headers)
         cnt = 1
@@ -42,7 +70,14 @@ class SmartCampus:
                 self.save_subject_data(course_id, course_title, color_code)
                 cnt += 1
 
-    def get_attendance_data(self, token, subject_num): # 과목 코드를 기준으로 출결 상태를 받아와 저장하는 함수
+    #받아온 과목의 코드, 과목 이름, 지정된 색상 코드를 저장함
+    def save_subject_data(self, course_id, course_title, color_code):
+        new_subject = SmartCampusData(course_id=course_id, course_title=course_title, color_code=color_code)
+        self.session.add(new_subject)
+        self.session.commit()
+    
+    #과목 코드와 토큰을 받음으로 해당 과목의 출결 상태를 저장함
+    def get_attendance_data(self, token, subject_num):
         subject = subject_num
         url = f"https://canvas.ssu.ac.kr/learningx/api/v1/courses/{subject}/attendance_items/summary?only_use_attendance=true"
         headers = {"Authorization": "Bearer " + token}
@@ -52,20 +87,25 @@ class SmartCampus:
             attendance_statuses = data['attendance_summaries']
             for item_id, attendance in attendance_statuses.items():
                 attendance_status = attendance['attendance_status']
-                try:
-                    existing_data = AttendanceRecord.objects.get(course__course_id=subject_num,
-                                                                attendance_status=attendance_status, attendance_id=item_id)
-                    pass
-                except AttendanceRecord.DoesNotExist:
+                existing_data = self.session.query(AttendanceRecord).filter_by(course_id=subject_num, attendance_status=attendance_status, attendance_id=item_id).first()
+                #이미 동일한 item_id로 입력된 출결 상태가 존재하면 넘어가고 아니라면 새로이 추가된 출결 상태라 판단하여 저장함
+                if not existing_data:
                     self.save_attendance_data(subject_num, item_id, attendance_status)
         else:
             print("요청에 실패했습니다. 응답 코드:", response.status_code)
 
-    def save_attendance_data(self, course_id, item_id, attendance_status): # 출결상태를 레코드에 저장하는 함수
-        course = SmartCampusData.objects.get(course_id=course_id)
-        AttendanceRecord.objects.create(course=course, attendance_id=item_id, attendance_status=attendance_status)
+    #출결상태 저장
+    def save_attendance_data(self, course_id, item_id, attendance_status):
+        course = self.session.query(SmartCampusData).filter_by(course_id=course_id).first()
+        if course is not None:
+            new_attendance = AttendanceRecord(course=course, attendance_id=item_id, attendance_status=attendance_status)
+            self.session.add(new_attendance)
+            self.session.commit()
+        else:
+             print("오류가 발생했습니다.")
 
-    def get_date(self, token, subject_num): # 과목 코드에 따라 강의의 동영상 강의 url, 과제의 제출 및 마감 기한등을 받아오고 저장하는 함수
+    #토큰과 과목 코드를 받음으로 해당 과목의 강의의 출결 인정 기간 및 과목의 제출 인정 기간 등의 정보를 받아옴
+    def get_date(self, token, subject_num):
         subject = subject_num
         url = f"https://canvas.ssu.ac.kr/learningx/api/v1/courses/{subject}/modules?include_detail=true"
         headers = {"Authorization": "Bearer " + token}
@@ -75,20 +115,28 @@ class SmartCampus:
             for module in data:
                 module_items = module["module_items"]
                 for item in module_items:
-                    module_item_id = item["module_item_id"]  # 모듈 아이템의 ID
+                    module_item_id = item["module_item_id"]
                     title = item["title"]
                     if item["content_type"] == "attendance_item":
-                        unlock_at = item["content_data"]["unlock_at"]
-                        due_at = item["content_data"]["due_at"]
-                        late_at = item["content_data"]["late_at"]
+                        #받아온 데이터의 종류가 강의일 경우 강의를 시청할 수 있는 url과 함께 시작 및 종료 시간을 입력 받아 저장함
+                        unlock_at = datetime.strptime(item["content_data"]["unlock_at"], "%Y-%m-%dT%H:%M:%SZ") if item["content_data"]["unlock_at"] else None
+                        due_at = datetime.strptime(item["content_data"]["due_at"], "%Y-%m-%dT%H:%M:%SZ") if item["content_data"]["due_at"] else None
+                        late_at = datetime.strptime(item["content_data"]["late_at"], "%Y-%m-%dT%H:%M:%SZ") if item["content_data"]["late_at"] else None
                         video_url = item["content_data"]["item_content_data"]["view_url"]
                         self.save_date_data(subject_num, title, module_item_id, unlock_at, due_at, late_at, video_url)
                     elif item["content_type"] == "assignment":
-                        unlock_at = item["content_data"]["unlock_at"]
-                        due_at = item["content_data"]["due_at"]
+                        #데이터의 형식이 과제일 경우 시작일 및 제출 마감일만 저장함
+                        unlock_at = datetime.strptime(item["content_data"]["unlock_at"], "%Y-%m-%dT%H:%M:%SZ") if item["content_data"]["unlock_at"] else None
+                        due_at = datetime.strptime(item["content_data"]["due_at"], "%Y-%m-%dT%H:%M:%SZ") if item["content_data"]["due_at"] else None
                         self.save_date_data(subject_num, title, module_item_id, unlock_at, due_at, None, None)
 
-    def save_date_data(self, course_id, title, module_item_id, unlock_at, due_at, late_at, video_url): #받아온 데이터를 레코드에 추가하는 함수
-        course = SmartCampusData.objects.get(course_id=course_id)
-        DateRecord.objects.create(course=course, module_item_title = title, module_item_id=module_item_id,
+    #받아온 강의 및 과제의 정보를 저장하는 함수
+    def save_date_data(self, course_id, title, module_item_id, unlock_at, due_at, late_at, video_url):
+        course = self.session.query(SmartCampusData).filter_by(course_id=course_id).first()
+        if course is not None:
+            new_date = DateRecord(course=course, module_item_title=title, module_item_id=module_item_id,
                                   unlock_at=unlock_at, due_at=due_at, late_at=late_at, video_url=video_url)
+            self.session.add(new_date)
+            self.session.commit()
+        else:
+             print("오류가 발생했습니다.")
