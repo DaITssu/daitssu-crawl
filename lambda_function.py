@@ -4,6 +4,7 @@ from smart_campus import smart_campus
 from departments import departments_crawling
 from fun_system import fus_system_crawling
 from ssu_catch import ssu_catch_crawling
+from auth_token import get_auth_token
 
 def lambda_handler(event, context):
     body = json.loads(event['body'])
@@ -18,6 +19,8 @@ def lambda_handler(event, context):
         result = fus_system_crawling(value)
     elif function_name == 'ssu_catch':
         result = ssu_catch_crawling(value)
+    elif function_name == 'auth_token':
+        result = get_auth_token(value)
     else:
         result = "Function not found"
     
