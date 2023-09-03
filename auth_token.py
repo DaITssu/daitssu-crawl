@@ -5,7 +5,10 @@ from Crypto.Cipher import PKCS1_v1_5
 from Crypto.PublicKey import RSA
 import base64
 
-def get_auth_token(sIdno, ssu_pwd):
+def get_auth_token(value):
+
+    sIdno = value['uid']
+    ssu_pwd = value['pw']
 
     common_header = {
         "referer": "https://smartid.ssu.ac.kr/Symtra_sso/smln.asp?apiReturnUrl=https%3A%2F%2Flms.ssu.ac.kr%2Fxn-sso%2Fgw-cb.php",
@@ -92,11 +95,3 @@ def decryption(res):
 
     return decrypt_pwd
 
-
-if __name__ == "__main__":
-    # 숭실대 유저의 학번과 비밀번호
-    sIdno = ""
-    ssu_pwd = ""
-
-    auth_token = get_auth_token(sIdno, ssu_pwd)
-    print(auth_token)
