@@ -1,11 +1,12 @@
 import requests
+import sqlalchemy
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
 import dev_db
 
 db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
-        drivername="postgresql+psycopg2",
+        drivername="postgresql",
         username=dev_db.dev_user_name,
         password=dev_db.dev_db_pw,
         host=dev_db.dev_host,
