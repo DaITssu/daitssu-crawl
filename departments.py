@@ -13,7 +13,7 @@ URL = "http://cse.ssu.ac.kr/03_sub/01_sub.htm"
 Base = declarative_base()
 
 db_url = sqlalchemy.engine.URL.create(
-    drivername="postgresql+psycopg2",
+    drivername="postgresql",
     username=dev_db.dev_user_name,
     password=dev_db.dev_db_pw,
     host=dev_db.dev_host,
