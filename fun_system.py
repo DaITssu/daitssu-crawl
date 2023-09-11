@@ -16,15 +16,14 @@ def fus_system_crawling(value):
 
     # 데이터베이스에 연결 설정
     conn = psycopg2.connect(
-        host=dev_host,
-        database=dev_db_name,
-        user=dev_user_name,
-        password=dev_db_pw,
+        host=dev_db.dev_host,
+        database=dev_db.dev_db_name,
+        user=dev_db.dev_user_name,
+        password=dev_db.dev_db_pw,
         port=5432,
     )
 
     cursor = conn.cursor()
-
 
 
     # 각 프로그램 정보를 크롤링하여 데이터베이스에 삽입
