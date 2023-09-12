@@ -3,6 +3,7 @@ import sqlalchemy
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
+import datetime
 import dev_db
 
 db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
