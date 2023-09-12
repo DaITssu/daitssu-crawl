@@ -1,5 +1,5 @@
 
-def fus_system_crawling(value):
+def fun_system_crawling(value):
 
     from bs4 import BeautifulSoup
     import requests
