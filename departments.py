@@ -2,8 +2,8 @@ import bs4.element
 import requests
 from bs4 import BeautifulSoup
 from datetime import date
-from sqlalchemy import create_engine, Table, MetaData, ForeignKey, Text
-from sqlalchemy.orm import sessionmaker, declarative_base, Mapped, mapped_column
+from sqlalchemy import create_engine, Table, MetaData
+from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime
 import sqlalchemy
 import dev_db
@@ -107,5 +107,5 @@ def computer_department_crawling(value):
 def departments_crawling(value):
     computer_department_crawling(value)
 
-
-departments_crawling(1)
+if __name__ == "__main__":
+    departments_crawling(1)
