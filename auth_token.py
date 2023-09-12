@@ -12,7 +12,7 @@ def get_auth_token(value):
 
     common_header = {
         "referer": "https://smartid.ssu.ac.kr/Symtra_sso/smln.asp?apiReturnUrl=https%3A%2F%2Flms.ssu.ac.kr%2Fxn-sso%2Fgw-cb.php",
-        "user-agent": "",
+        "user-agent": ""
     }
 
     session = requests.Session()
