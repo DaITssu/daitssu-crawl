@@ -1,11 +1,10 @@
+from bs4 import BeautifulSoup
+import requests
+from datetime import datetime
+import psycopg2
+import dev_db
 
-def fus_system_crawling(value):
-
-    from bs4 import BeautifulSoup
-    import requests
-    from datetime import datetime
-    import psycopg2
-    import dev_db
+def fun_system_crawling(value):
 
     # 웹 페이지에서 프로그램 정보 가져오기
     Fun = "https://fun.ssu.ac.kr/ko/program"
@@ -114,9 +113,9 @@ def fus_system_crawling(value):
 
         conn.commit()
 
-    # 프로그램 데이터 출력
-    cursor.execute("SELECT * FROM programs")
-    programs_data = cursor.fetchall()
-
     # 데이터베이스 연결 닫기
     conn.close()
+
+
+if __name__ == "__main__":
+    fun_system_crawling(1)

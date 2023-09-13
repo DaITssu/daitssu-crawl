@@ -1,9 +1,8 @@
-import json
 import requests
 from bs4 import BeautifulSoup
 from datetime import date
 from sqlalchemy import create_engine, MetaData, Table
-from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime, TEXT
+from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base
 import sqlalchemy
 import dev_db
@@ -151,3 +150,8 @@ def ssu_catch_crawling(value):
         for content in content_list:
             session.add(content)
         session.commit()
+
+
+if __name__ == "__main__":
+    ssu_catch_crawling(1)
+    
