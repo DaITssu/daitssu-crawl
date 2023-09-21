@@ -59,6 +59,9 @@ class SmartCampus:
     def __init__(self, session):
         self.session = session
 
+    color_list = ['FF8DC4', 'FF7171', 'FF9E68', 'FFD057', 'B7E532', '35CC7B', '73E4DE', '6197FF', 'B69BE3', 'A48172']
+    over_color = 'BDBDBD'
+    
     def get_subject(self, token):  # 토큰을 보냄으로 학기에 현재 수강중인 과목의 정보를 받아옴
         url = "https://canvas.ssu.ac.kr/learningx/api/v1/learn_activities/courses?term_ids[]=31"
         headers = {"Authorization": "Bearer " + token}
