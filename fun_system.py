@@ -4,6 +4,17 @@ from datetime import datetime
 import psycopg2
 import dev_db
 
+# 데이터베이스에 연결 설정
+conn = psycopg2.connect(
+    host=dev_db.dev_host,
+    database=dev_db.dev_db_name,
+    user=dev_db.dev_user_name,
+    password=dev_db.dev_db_pw,
+    port=5432,
+)
+cursor = conn.cursor()
+
+
 def fun_system_crawling(value):
 
     # 웹 페이지에서 프로그램 정보 가져오기
@@ -13,43 +24,43 @@ def fun_system_crawling(value):
     soup = BeautifulSoup(html_text, "html.parser")
     tag_ul = soup.find("ul", {"class": "columns-4"})
 
-    # 데이터베이스에 연결 설정
-    conn = psycopg2.connect(
-        host=dev_db.dev_host,
-        database=dev_db.dev_db_name,
-        user=dev_db.dev_user_name,
-        password=dev_db.dev_db_pw,
-        port=5432,
-    )
-
-    cursor = conn.cursor()
 
 
-    # 각 프로그램 정보를 크롤링하여 데이터베이스에 삽입
     for data in tag_ul.find_all("li"):
-        data_title = data.select_one("b.title").get_text()
+
+        #title크롤링
+        title = data.select_one("b.title").get_text()
+
+        #image_url 크롤링
         data_link = data.find("a")
         img_style = data.find("div", {"class": "cover"})["style"]
         strat = img_style.index("(") + 1
         end = img_style.index(")")
-        image = img_style[strat:end]
+        image_url = img_style[strat:end]
+
+        #생성시각 및 업데이트 시각 크롤링.
         created_time_element = data_link.find("span", {"class": "created-time"})
-
         if created_time_element:
-            created_time = created_time_element.get_text(strip=True)
+            created_at = created_time_element.get_text(strip=True)
         else:
-            created_time = None
+            created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # 프로그램 내용 가져오기 (이전 내용 유지)
+
+       #카테고리
+        category = "펀시스템"
+
+        # content 크롤링
         content_url = "https://fun.ssu.ac.kr" + data_link.get("href")
         html_content = requests.get(content_url)
         html_content_text = html_content.text
         soup_content = BeautifulSoup(html_content_text, "html.parser")
         content = ""
 
-        for tag in soup_content.find_all(["p", "table"]):
+        wysiwyg_content = soup_content.find("div", {"data-role": "wysiwyg-content"})
+
+        for tag in wysiwyg_content(["p", "table"]):
             if tag.name == "p":
                 # 이미지, 링크, 동영상인 경우
                 if tag.find("img"):
@@ -77,39 +88,13 @@ def fun_system_crawling(value):
                     ]
                     content += "\t/ ".join(row_contents) + "\n"
 
-        # 데이터 존재 여부 확인 및 업데이트 시각 설정
+        #DB INSERT
         cursor.execute(
-            "SELECT * FROM programs WHERE url=%s",
-            ("https://fun.ssu.ac.kr" + data_link.get("href"),),
+            f"""
+            INSERT INTO notice.notice_fs (title, content, image_url, url, created_at, updated_at,category)
+            VALUES ('{title}', '{content}', '{{image_url}}','{content_url}', '{created_at}', '{updated_at}','{category}')
+            """,
         )
-        existing_data = cursor.fetchone()
-
-        if existing_data:
-            updated_time = current_time
-            cursor.execute(
-                """
-                UPDATE programs
-                SET updated_time=%s, content=%s
-                WHERE url=%s
-            """,
-                (updated_time, content, "https://fun.ssu.ac.kr" + data_link.get("href")),
-            )
-        else:
-            updated_time = None
-            cursor.execute(
-                """
-                INSERT INTO programs (title, url, image_url, created_time, updated_time, content)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-                (
-                    data_title,
-                    "https://fun.ssu.ac.kr" + data_link.get("href"),
-                    "https://fun.ssu.ac.kr" + image,
-                    created_time,
-                    updated_time,
-                    content,
-                ),
-            )
 
         conn.commit()
 
