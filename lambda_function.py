@@ -7,9 +7,8 @@ def lambda_handler(event, context):
 
     match function_name:
         case "smart_campus":
-            # 스마트 캠퍼스 크롤링 모듈 import 문을 작성해주세요.
-            # 스마트 캠퍼스 크롤링 로직 함수를 호출해주세요.
-            pass
+            from smart_campus import smart_campus_crawling
+            result = smart_campus_crawling(value)
         case "fun_system":
             from fun_system import fun_system_crawling
             result = fun_system_crawling(value)
