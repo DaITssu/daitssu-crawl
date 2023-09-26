@@ -5,7 +5,7 @@ from datetime import date
 from datetime import datetime
 from sqlalchemy import create_engine, Table, MetaData
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime
+from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime, String
 import sqlalchemy
 import dev_db
 
@@ -25,6 +25,15 @@ db_url = sqlalchemy.engine.URL.create(
 engine = create_engine(db_url)
 session_maker = sessionmaker(autoflush=False, autocommit=False, bind=engine)
 metadata_obj = MetaData()
+
+# main.department 구조
+class Department(Base):
+    __tablename__ = "department"
+    __table_args__ = {"schema": "main"}
+    id = Column(Integer, primary_key=True)
+    name = Column(String(32), nullable=False)
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
 
 
 class ComputerNotification(Base):
@@ -152,8 +161,7 @@ class AiNotification(Base):
             department_table = Table(
                 "department", metadata_obj, schema="main", autoload_with=engine
             )
-            # department_table에 ai융합학부가 없는 듯 합니다.
-            query = department_table.select().where(department_table.c.name == "ai융합학부")
+            query = department_table.select().where(department_table.c.name == "AI융합학부")
             results = connect.execute(query)
             for result in results:
                 self.department_id = result.id
@@ -205,6 +213,21 @@ def ai_department_crawling(value):
 
     with session_maker() as session:
         for result in results:
+            # department.id가 NULL 값이 경우, department에 AI융합학부 column 추가
+            if result.department_id is None:
+                new_department = Department(
+                    id = 4,
+                    name="AI융합학부",
+                    created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    updated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                )
+
+                session.add(new_department)
+                session.commit()
+                session.close()
+
+                result.department_id = new_department.id
+
             session.add(result)
             # print(result)  # db 삽입 내용 확인 출력문
 
