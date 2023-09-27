@@ -7,8 +7,8 @@ import base64
 
 def get_auth_token(value):
 
-    sIdno = value['uid']
-    ssu_pwd = value['pw']
+    sIdno = value.student_id
+    ssu_pwd = value.password
 
     common_header = {
         "referer": "https://smartid.ssu.ac.kr/Symtra_sso/smln.asp?apiReturnUrl=https%3A%2F%2Flms.ssu.ac.kr%2Fxn-sso%2Fgw-cb.php",

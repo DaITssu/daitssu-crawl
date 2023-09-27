@@ -104,8 +104,5 @@ def computer_department_crawling(value):
         session.commit()
 
 
-def departments_crawling(value):
-    computer_department_crawling(value)
-
 if __name__ == "__main__":
-    departments_crawling(1)
+    computer_department_crawling(1)
