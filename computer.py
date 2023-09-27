@@ -8,6 +8,8 @@ from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime
 import sqlalchemy
 import dev_db
 
+from fastapi.responses import JSONResponse
+
 URL = "http://cse.ssu.ac.kr/03_sub/01_sub.htm"
 
 Base = declarative_base()
@@ -87,22 +89,28 @@ class ComputerNotification(Base):
         ))
 
 
-def computer_department_crawling(value):
-    page = 1  # 1 ~
-    base_url = URL + "?page={0}".format(page)
-    req = requests.get(base_url)
-    soup = BeautifulSoup(req.text, 'lxml')
-    content = soup.find('table', summary='글목록').find('tbody')
-    rows = content.findChildren("tr")
-    results = []
-    for row in rows:
-        results.append(ComputerNotification(row))
+def computer_department_crawling():
 
-    with session_maker() as session:
-        for result in results:
-            session.add(result)
-        session.commit()
+    try:
+        page = 1  # 1 ~
+        base_url = URL + "?page={0}".format(page)
+        req = requests.get(base_url)
+        soup = BeautifulSoup(req.text, 'lxml')
+        content = soup.find('table', summary='글목록').find('tbody')
+        rows = content.findChildren("tr")
+        results = []
+        for row in rows:
+            results.append(ComputerNotification(row))
+
+        with session_maker() as session:
+            for result in results:
+                session.add(result)
+            session.commit()
+    except:
+        return JSONResponse(content="Internal Server Error", status_code=500)
+    
+    return JSONResponse(content="OK", status_code=200)
 
 
 if __name__ == "__main__":
-    computer_department_crawling(1)
+    computer_department_crawling()
