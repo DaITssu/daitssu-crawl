@@ -175,9 +175,9 @@ def smart_campus_crawling(token):
             smart_campus.get_date(token, subject_num)
     
     except:
-        return JSONResponse(status_code=500)
+        return JSONResponse(content="Internal Server Error", status_code=500)
 
-    return JSONResponse(status_code=200)
+    return JSONResponse(content="OK", status_code=200)
 
 
 
