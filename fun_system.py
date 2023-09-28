@@ -4,7 +4,9 @@ from datetime import datetime
 import psycopg2
 import dev_db
 
-def fun_system_crawling(value):
+from fastapi.responses import JSONResponse
+
+def do_fun_system_crawling():
 
     # 웹 페이지에서 프로그램 정보 가져오기
     Fun = "https://fun.ssu.ac.kr/ko/program"
@@ -117,5 +119,14 @@ def fun_system_crawling(value):
     conn.close()
 
 
+def fun_system_crawling():
+    try:
+        do_fun_system_crawling()
+    except:
+        return JSONResponse(content="Internal Server Error", status_code=500)
+    
+    return JSONResponse(content="OK", status_code=200)
+
+
 if __name__ == "__main__":
-    fun_system_crawling(1)
+    fun_system_crawling()

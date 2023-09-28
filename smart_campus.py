@@ -6,6 +6,8 @@ from sqlalchemy.ext.declarative import declarative_base
 import datetime
 import dev_db
 
+from fastapi.responses import JSONResponse
+
 db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
     drivername="postgresql",
     username=dev_db.dev_user_name,
@@ -156,24 +158,29 @@ class SmartCampus:
             print("오류가 발생했습니다.")
 
 def smart_campus_crawling(token):
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    smart_campus = SmartCampus(session)
+    
+    try:
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        smart_campus = SmartCampus(session)
 
+        # Get subjects and save them to the database
+        smart_campus.get_subject(token)
 
-    # Get subjects and save them to the database
-    smart_campus.get_subject(token)
+        # Loop through the subjects and get attendance data for each
+        subjects = session.query(SmartCampusData).all()
+        for subject in subjects:
+            subject_num = subject.course_id
+            smart_campus.get_attendance_data(token, subject_num)
+            smart_campus.get_date(token, subject_num)
+    
+    except:
+        return JSONResponse(content="Internal Server Error", status_code=500)
 
-    # Loop through the subjects and get attendance data for each
-    subjects = session.query(SmartCampusData).all()
-    for subject in subjects:
-        subject_num = subject.course_id
-        smart_campus.get_attendance_data(token, subject_num)
-        smart_campus.get_date(token, subject_num)
-
+    return JSONResponse(content="OK", status_code=200)
 
 
 
 if __name__ == "__main__":
-
-    smart_campus_crawling(1)
+    token = "테스트시 토큰 값을 넣어주세요."
+    smart_campus_crawling(token)
