@@ -37,6 +37,7 @@ def fun_system_crawling(value):
         strat = img_style.index("(") + 1
         end = img_style.index(")")
         image_url = img_style[strat:end]
+        image = []
 
         #생성시각 및 업데이트 시각 크롤링.
         created_time_element = data_link.find("span", {"class": "created-time"})
@@ -58,6 +59,11 @@ def fun_system_crawling(value):
         soup_content = BeautifulSoup(html_content_text, "html.parser")
         content = ""
 
+        # views 크롤링.
+        views_label = soup_content.find("label", {"class": "hit"})
+        views_text = views_label.get_text(strip=True)
+        views = int(''.join(filter(str.isdigit, views_text)))
+
         wysiwyg_content = soup_content.find("div", {"data-role": "wysiwyg-content"})
 
         for tag in wysiwyg_content(["p", "table"]):
@@ -65,7 +71,7 @@ def fun_system_crawling(value):
                 # 이미지, 링크, 동영상인 경우
                 if tag.find("img"):
                     img_src = tag.find("img")["src"]
-                    content += f"Image: {img_src}\n"
+                    image.append(img_src)
                 elif tag.find("a"):
                     link_tag = tag.find("a")
                     link_href = link_tag["href"]
@@ -81,18 +87,17 @@ def fun_system_crawling(value):
                     content += f"{text_content}\n"
 
             elif tag.name == "table":
-                content += "Table Contents:\n"
                 for row in tag.find_all("tr"):
-                    row_contents = [
-                        cell.get_text(strip=True) for cell in row.find_all("td")
-                    ]
+                    row_contents = []
+                    for cell in row.find_all(["td", "th"]):
+                        row_contents.append(cell.get_text(strip=True))
                     content += "\t/ ".join(row_contents) + "\n"
 
         #DB INSERT
         cursor.execute(
             f"""
-            INSERT INTO notice.notice_fs (title, content, image_url, url, created_at, updated_at,category)
-            VALUES ('{title}', '{content}', '{{image_url}}','{content_url}', '{created_at}', '{updated_at}','{category}')
+            INSERT INTO notice.notice_fs (title, content, image_url, url, created_at, updated_at,category,views)
+            VALUES ('{title}', '{content}', ARRAY[{image}]::text[],'{content_url}', '{created_at}', '{updated_at}','{category}','{views}')
             """,
         )
 
