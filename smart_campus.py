@@ -1,8 +1,9 @@
 import requests
 import sqlalchemy
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, CHAR, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import func
 import datetime
 import dev_db
 
@@ -23,39 +24,63 @@ session_maker.configure(bind=engine)
 Base = declarative_base()
 
 
-class SmartCampusData(Base):  # 과목별 과목 코드와 과목의 이름, 색상 코드를 저장할 부분
-    __tablename__ = 'smart_campus_data'
+class Course(Base):
+    __tablename__ = 'course'
+    course_id = id = Column(Integer, nullable=False)
+    id = Column(Integer, primary_key=True)
+    color = name = Column(CHAR(32), nullable=False)
+    name = Column(CHAR(32), nullable=False)
+    term = Column(Integer, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
 
-    course_id = Column(Integer, primary_key=True)
-    course_title = Column(String(255))
-    color_code = Column(String(10))
 
-
-class AttendanceRecord(Base):  # 과목별 과목 출결상태를 저장할 부분으로 과목 코드에 맞는 과목에 종속됨
-    __tablename__ = 'attendance_record'
+class Video(Base):
+    __tablename__ = 'video'
 
     id = Column(Integer, primary_key=True)
-    course_id = Column(Integer, ForeignKey('smart_campus_data.course_id'))
-    attendance_id = Column(Integer)
-    attendance_status = Column(String(50))
+    name = Column(CHAR(256), nullable=False)
+    course_id = Column(Integer, ForeignKey('course.course_id'), nullable=False)
+    due_at = Column(DateTime, nullable=False)
+    start_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
 
-    course = relationship('SmartCampusData', back_populates='attendance_records')
 
-
-class DateRecord(Base):  # 과목별 강의 기한 및 과제 기한을 저장할 부분으로 과목 코드에 맞는 과목에 종속됨
-    __tablename__ = 'date_record'
+class Assignment(Base):
+    __tablename__ = 'assignment'
 
     id = Column(Integer, primary_key=True)
-    course_id = Column(Integer, ForeignKey('smart_campus_data.course_id'))
-    module_item_id = Column(Integer, unique=True)
-    module_item_title = Column(String(255))
-    unlock_at = Column(DateTime, nullable=True)
-    due_at = Column(DateTime, nullable=True)
-    late_at = Column(DateTime, nullable=True)
-    video_url = Column(String)
+    name = Column(CHAR(256), nullable=False)
+    course_id = Column(Integer, ForeignKey('course.course_id'), nullable=False)
+    due_at = Column(DateTime, nullable=False)
+    start_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
 
-    course = relationship('SmartCampusData', back_populates='date_records')
 
+class UserCourseRelation(Base):
+    __tablename__ = 'user_course_relation'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False)
+    course_id = Column(Integer, ForeignKey('course.course_id'), nullable=False)
+    register_status = Column(CHAR(20), nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+
+
+class Calendar(Base):
+    __tablename__ = 'calendar'
+
+    id = Column(Integer, primary_key=True)
+    type = Column(CHAR(32), nullable=False)
+    course = Column(CHAR(32), nullable=False)
+    due_at = Column(DateTime, nullable=False)
+    name = Column(CHAR(32), nullable=False)
+    isComplete = Column(Boolean, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
 
 class SmartCampus:
     def __init__(self, session):
@@ -63,8 +88,8 @@ class SmartCampus:
 
     color_list = ['FF8DC4', 'FF7171', 'FF9E68', 'FFD057', 'B7E532', '35CC7B', '73E4DE', '6197FF', 'B69BE3', 'A48172']
     over_color = 'BDBDBD'
-    
-    def get_subject(self, token):  # 토큰을 보냄으로 학기에 현재 수강중인 과목의 정보를 받아옴
+
+    def course(self, token, user_id):  # 토큰을 보냄으로 학기에 현재 수강중인 과목의 정보를 받아옴
         url = "https://canvas.ssu.ac.kr/learningx/api/v1/learn_activities/courses?term_ids[]=31"
         headers = {"Authorization": "Bearer " + token}
         response = requests.get(url, headers=headers)
@@ -75,52 +100,84 @@ class SmartCampus:
                 course_title = module["name"]
                 course_id = module["id"]
                 color_code = self.color_list[cnt - 1] if cnt < 11 else self.over_color
-                self.save_subject_data(course_id, course_title, color_code)
+                self.save_subject_data(course_id, course_title, color_code, user_id)
                 cnt += 1
+            self.session.commit()
 
     # 받아온 과목의 코드, 과목 이름, 지정된 색상 코드를 저장함
-    def save_subject_data(self, course_id, course_title, color_code):
-        new_subject = SmartCampusData(course_id=course_id, course_title=course_title, color_code=color_code)
-        self.session.add(new_subject)
-        self.session.commit()
+    def save_course_data(self, course_id, course_title, color_code, user_id):
+        current_time = datetime.utcnow()
+        existing_course = self.session.query(Course).filter_by(course_id=course_id).first()
+        existing_course_of_user = self.session.query(UserCourseRelation).filter_by(user_id= user_id,course_id=course_id).first()
+        #유저에게 해당 강의가 연결되어있지 않을 경우 추가
+        if existing_course_of_user is None:
+            put_course = UserCourseRelation(user_id=user_id, course_id=course_id, register_status="수강중",
+                                            created_at=current_time ,updated_ap=current_time)
+            self.session.add(put_course)
+        #강의 테이블에 존재하지 않았던 새로운 강의일 경우 강의 테이블에 데이터 추가
+        if existing_course is None:
+            # 존재하지 않는 경우에만 추가s
+            new_subject = Course(course_id=course_id, term=2, name=course_title, created_at=current_time,
+                                 color = color_code, updated_at=current_time)
+            self.session.add(new_subject)
 
-    # 과목 코드와 토큰을 받음으로 해당 과목의 출결 상태를 저장함
-    def get_attendance_data(self, token, subject_num):
+    # 과목 코드와 토큰을 대면 수업 강의의 출결 여부 및 수업을 진행한 날짜를 받음
+    def get_calander_data(self, token, subject_num):
+        current_time = datetime.utcnow()
         subject = subject_num
-        url = f"https://canvas.ssu.ac.kr/learningx/api/v1/courses/{subject}/attendance_items/summary?only_use_attendance=true"
+        url = f"https://canvas.ssu.ac.kr/learningx/api/v1/courses/{subject}/attendance_items?include_detail=true"
         headers = {"Authorization": "Bearer " + token}
+
+        summary_url = "https://canvas.ssu.ac.kr/learningx/api/v1/courses/24920/attendance_items/summary?only_use_attendance=true"
+        response_summary = requests.get(summary_url, headers=headers)
+        if response_summary.status_code == 200:
+            summary_data = response_summary.json().get("attendance_summaries", {})
+
+        # API 요청 보내고 데이터 파싱
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             data = response.json()
-            attendance_statuses = data['attendance_summaries']
-            for item_id, attendance in attendance_statuses.items():
-                attendance_status = attendance['attendance_status']
-                existing_data = self.session.query(AttendanceRecord).filter_by(course_id=subject_num,
-                                                                               attendance_status=attendance_status,
-                                                                               attendance_id=item_id).first()
-                # 이미 동일한 item_id로 입력된 출결 상태가 존재하면 넘어가고 아니라면 새로이 추가된 출결 상태라 판단하여 저장함
-                if not existing_data:
-                    self.save_attendance_data(subject_num, item_id, attendance_status)
-        else:
-            print("요청에 실패했습니다. 응답 코드:", response.status_code)
+            attendance_items = data.get("attendance_items", [])
+            for item in attendance_items:
+                item_content_data = item.get("item_content_data", {})
+                placement = item_content_data.get("placement")
+                schedule_time = item_content_data.get("schedule_time")
+                item_id_data = item.get("item_id")
+                status = False
+                if placement:
+                    # 중복된 "due_at" 값이 있는지 확인하고 중복된 경우 스킵
+                    if not self.session.query(Calendar).filter_by(due_at=schedule_time).first():
+                        for item_id, attendance_summary in summary_data.items():
+                            if item_id==item_id_data:
+                                if attendance_summary["attendance_status"]=="attendance":
+                                    #출결 정보에 관한 데이터와 비교해 현재 상태를 확인
+                                    status=True
+                                    break
+                        course_name = self.session.query(Course).filter_by(course_id=subject_num).first()
+                        new_calendar_item = Calendar(type="대면수업",
+                            course=course_name.name,
+                            due_at=schedule_time,
+                            is_completed=status,
+                            name=item.get("title"),
+                            created_at=current_time,
+                            updated_at=current_time
+                        )
+                        course = self.session.query(Course).filter_by(course_id=subject_num).first()
+                        course.updated_at = current_time
+                        self.session.add(new_calendar_item)
 
-    # 출결상태 저장
-    def save_attendance_data(self, course_id, item_id, attendance_status):
-        course = self.session.query(SmartCampusData).filter_by(course_id=course_id).first()
-        if course is not None:
-            new_attendance = AttendanceRecord(course=course, attendance_id=item_id, attendance_status=attendance_status)
-            self.session.add(new_attendance)
             self.session.commit()
         else:
-            print("오류가 발생했습니다.")
+            print("API 요청에 실패했습니다. 응답 코드:", response.status_code)
+
 
     # 토큰과 과목 코드를 받음으로 해당 과목의 강의의 출결 인정 기간 및 과목의 제출 인정 기간 등의 정보를 받아옴
     def get_date(self, token, subject_num):
-
         subject = subject_num
         url = f"https://canvas.ssu.ac.kr/learningx/api/v1/courses/{subject}/modules?include_detail=true"
         headers = {"Authorization": "Bearer " + token}
         response = requests.get(url, headers=headers)
+
         if response.status_code == 200:
             data = response.json()
             for module in data:
@@ -128,57 +185,126 @@ class SmartCampus:
                 for item in module_items:
                     module_item_id = item["module_item_id"]
                     title = item["title"]
+
                     if item["content_type"] == "attendance_item":
-                        # 받아온 데이터의 종류가 강의일 경우 강의를 시청할 수 있는 url과 함께 시작 및 종료 시간을 입력 받아 저장함
                         unlock_at = datetime.strptime(item["content_data"]["unlock_at"], "%Y-%m-%dT%H:%M:%SZ") if \
-                        item["content_data"]["unlock_at"] else None
+                            item["content_data"]["unlock_at"] else None
                         due_at = datetime.strptime(item["content_data"]["due_at"], "%Y-%m-%dT%H:%M:%SZ") if \
-                        item["content_data"]["due_at"] else None
-                        late_at = datetime.strptime(item["content_data"]["late_at"], "%Y-%m-%dT%H:%M:%SZ") if \
-                        item["content_data"]["late_at"] else None
+                            item["content_data"]["due_at"] else None
+                        create_at = datetime.strptime(item["content_data"]["created_at"], "%Y-%m-%dT%H:%M:%SZ") if \
+                            item["content_data"]["late_at"] else None
+                        updated_at = datetime.strptime(item["content_data"]["updated_at"], "%Y-%m-%dT%H:%M:%SZ") if \
+                            item["content_data"]["late_at"] else None
                         video_url = item["content_data"]["item_content_data"]["view_url"]
-                        self.save_date_data(subject_num, title, module_item_id, unlock_at, due_at, late_at, video_url)
+                        self.save_video_data(subject_num, title, create_at, unlock_at, due_at, updated_at, video_url)
                     elif item["content_type"] == "assignment":
-                        # 데이터의 형식이 과제일 경우 시작일 및 제출 마감일만 저장함
                         unlock_at = datetime.strptime(item["content_data"]["unlock_at"], "%Y-%m-%dT%H:%M:%SZ") if \
-                        item["content_data"]["unlock_at"] else None
+                            item["content_data"]["unlock_at"] else None
                         due_at = datetime.strptime(item["content_data"]["due_at"], "%Y-%m-%dT%H:%M:%SZ") if \
-                        item["content_data"]["due_at"] else None
-                        self.save_date_data(subject_num, title, module_item_id, unlock_at, due_at, None, None)
+                            item["content_data"]["due_at"] else None
+                        self.save_assignment_data(subject_num, title, unlock_at, due_at)
+                    elif item["content_type"] == "quiz":
+                        due_at = datetime.strptime(item["content_data"]["due_at"], "%Y-%m-%dT%H:%M:%SZ") if \
+                            item["content_data"]["due_at"] else None
+                        self.save_quiz_data(subject_num, title, due_at)
 
-    # 받아온 강의 및 과제의 정보를 저장하는 함수
-    def save_date_data(self, course_id, title, module_item_id, unlock_at, due_at, late_at, video_url):
-        course = self.session.query(SmartCampusData).filter_by(course_id=course_id).first()
-        if course is not None:
-            new_date = DateRecord(course=course, module_item_title=title, module_item_id=module_item_id,
-                                  unlock_at=unlock_at, due_at=due_at, late_at=late_at, video_url=video_url)
-            self.session.add(new_date)
+
             self.session.commit()
-        else:
-            print("오류가 발생했습니다.")
 
-def smart_campus_crawling(token):
-    
+    def save_video_data(self, course_id, title, unlock_at, due_at):
+        #동영상 강의에 대해 이미 있을 경우 변경사항이 있는 것 아니면 그냥 스킵하고 아닐경우 변경사항 갱신 후 업데이트, 또는 새로운 데이터일 경우 db에 추가
+        current_time = datetime.utcnow()
+        existing_data = self.session.query(Video).filter_by(course_id=course_id, name=title).first()
+
+        if existing_data is None:
+            new_date = Video(course_id=course_id, name=title,
+                             start_at=unlock_at, due_at=due_at, updated_at=current_time, created_at=current_time)
+            self.session.add(new_date)
+            course = self.session.query(Course).filter_by(course_id=course_id).first()
+            course.updated_at = current_time
+        else:
+            if (
+                    existing_data.start_at != unlock_at
+                    or existing_data.due_at != due_at
+            ):
+                existing_data.start_at = unlock_at
+                existing_data.due_at = due_at
+                existing_data.updated_at = current_time
+                course = self.session.query(Course).filter_by(course_id=course_id).first()
+                course.updated_at = current_time
+
+    def save_assignment_data(self, course_id, title, unlock_at, due_at):
+        #과제에 대해 이미 있을 경우 변경사항이 있는 것 아니면 그냥 스킵하고 아닐경우 변경사항 갱신 후 업데이트, 또는 새로운 데이터일 경우 db에 추가
+
+        current_time = datetime.utcnow()
+        existing_data = self.session.query(Assignment).filter_by(course_id=course_id, name=title).first()
+
+        if existing_data is None:
+            new_date = Assignment(course_id=course_id, name=title,
+                                  start_at=unlock_at, due_at=due_at, created_at=current_time, updated_at=current_time)
+            self.session.add(new_date)
+            course = self.session.query(Course).filter_by(course_id=course_id).first()
+            course.updated_at = current_time
+        else:
+            if (
+                    existing_data.start_at != unlock_at
+                    or existing_data.due_at != due_at
+            ):
+                existing_data.start_at = unlock_at
+                existing_data.due_at = due_at
+                existing_data.updated_at = current_time
+                course = self.session.query(Course).filter_by(course_id=course_id).first()
+                course.updated_at = current_time
+
+    def save_quiz_data(self, course_id, title, due_at):
+        #퀴즈 형식의 경우 전체 Calander 테이블에 추가
+        current_time = datetime.utcnow()
+        course_name = self.session.query(Course).filter_by(course_id=course_id).first()
+        existing_data = self.session.query(Calendar).filter_by(course=course_name, type="퀴즈", due_at=due_at).first()
+
+        if existing_data is None:
+            new_calendar_item = Calendar(type="퀴즈",
+                                         course=course_name.name,
+                                         due_at=due_at,
+                                         name=title,
+                                         created_at=current_time,
+                                         updated_at=current_time
+                                         )
+            self.session.add(new_calendar_item)
+            course = self.session.query(Course).filter_by(course_id=course_id).first()
+            course.updated_at = current_time
+        else:
+            if (
+                existing_data.due_at != due_at
+            ):
+                existing_data.due_at = due_at
+                existing_data.updated_at = current_time
+                course = self.session.query(Course).filter_by(course_id=course_id).first()
+                course.updated_at = current_time
+
+
+
+
+
+
+def smart_campus_crawling(token, user_id):
     try:
         Session = sessionmaker(bind=engine)
         session = Session()
         smart_campus = SmartCampus(session)
 
-        # Get subjects and save them to the database
-        smart_campus.get_subject(token)
+        smart_campus.course(token, user_id)
 
-        # Loop through the subjects and get attendance data for each
-        subjects = session.query(SmartCampusData).all()
+        subjects = session.query(UserCourseRelation).all()
         for subject in subjects:
             subject_num = subject.course_id
-            smart_campus.get_attendance_data(token, subject_num)
+            smart_campus.get_calander_data(token, subject_num)
             smart_campus.get_date(token, subject_num)
-    
+
     except:
         return JSONResponse(content="Internal Server Error", status_code=500)
 
     return JSONResponse(content="OK", status_code=200)
-
 
 
 if __name__ == "__main__":
