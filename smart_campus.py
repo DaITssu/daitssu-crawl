@@ -28,7 +28,6 @@ class Course(Base):
     __tablename__ = 'course'
     course_id = id = Column(Integer, nullable=False)
     id = Column(Integer, primary_key=True)
-    color = name = Column(CHAR(32), nullable=False)
     name = Column(CHAR(32), nullable=False)
     term = Column(Integer, nullable=False)
     created_at = Column(DateTime, nullable=False)
@@ -68,6 +67,7 @@ class UserCourseRelation(Base):
     register_status = Column(CHAR(20), nullable=False)
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=False)
+    color = name = Column(CHAR(32), nullable=False)
 
 
 class Calendar(Base):
@@ -109,19 +109,17 @@ class SmartCampus:
         current_time = datetime.utcnow()
         existing_course = self.session.query(Course).filter_by(course_id=course_id).first()
         existing_course_of_user = self.session.query(UserCourseRelation).filter_by(user_id= user_id,course_id=course_id).first()
-        #유저에게 해당 강의가 연결되어있지 않을 경우 추가
         if existing_course_of_user is None:
             put_course = UserCourseRelation(user_id=user_id, course_id=course_id, register_status="수강중",
-                                            created_at=current_time ,updated_ap=current_time)
+                                            created_at=current_time, updated_ap=current_time)
             self.session.add(put_course)
-        #강의 테이블에 존재하지 않았던 새로운 강의일 경우 강의 테이블에 데이터 추가
         if existing_course is None:
             # 존재하지 않는 경우에만 추가s
             new_subject = Course(course_id=course_id, term=2, name=course_title, created_at=current_time,
-                                 color = color_code, updated_at=current_time)
+                                 updated_at=current_time)
             self.session.add(new_subject)
 
-    # 과목 코드와 토큰을 대면 수업 강의의 출결 여부 및 수업을 진행한 날짜를 받음
+    # 과목 코드와 토큰을 받음으로 해당 과목의 출결 상태를 저장함
     def get_calander_data(self, token, subject_num):
         current_time = datetime.utcnow()
         subject = subject_num
@@ -150,7 +148,6 @@ class SmartCampus:
                         for item_id, attendance_summary in summary_data.items():
                             if item_id==item_id_data:
                                 if attendance_summary["attendance_status"]=="attendance":
-                                    #출결 정보에 관한 데이터와 비교해 현재 상태를 확인
                                     status=True
                                     break
                         course_name = self.session.query(Course).filter_by(course_id=subject_num).first()
@@ -167,6 +164,7 @@ class SmartCampus:
                         self.session.add(new_calendar_item)
 
             self.session.commit()
+            self.session.close()
         else:
             print("API 요청에 실패했습니다. 응답 코드:", response.status_code)
 
@@ -212,7 +210,6 @@ class SmartCampus:
             self.session.commit()
 
     def save_video_data(self, course_id, title, unlock_at, due_at):
-        #동영상 강의에 대해 이미 있을 경우 변경사항이 있는 것 아니면 그냥 스킵하고 아닐경우 변경사항 갱신 후 업데이트, 또는 새로운 데이터일 경우 db에 추가
         current_time = datetime.utcnow()
         existing_data = self.session.query(Video).filter_by(course_id=course_id, name=title).first()
 
@@ -234,8 +231,6 @@ class SmartCampus:
                 course.updated_at = current_time
 
     def save_assignment_data(self, course_id, title, unlock_at, due_at):
-        #과제에 대해 이미 있을 경우 변경사항이 있는 것 아니면 그냥 스킵하고 아닐경우 변경사항 갱신 후 업데이트, 또는 새로운 데이터일 경우 db에 추가
-
         current_time = datetime.utcnow()
         existing_data = self.session.query(Assignment).filter_by(course_id=course_id, name=title).first()
 
@@ -257,7 +252,6 @@ class SmartCampus:
                 course.updated_at = current_time
 
     def save_quiz_data(self, course_id, title, due_at):
-        #퀴즈 형식의 경우 전체 Calander 테이블에 추가
         current_time = datetime.utcnow()
         course_name = self.session.query(Course).filter_by(course_id=course_id).first()
         existing_data = self.session.query(Calendar).filter_by(course=course_name, type="퀴즈", due_at=due_at).first()
@@ -293,12 +287,14 @@ def smart_campus_crawling(token, user_id):
         session = Session()
         smart_campus = SmartCampus(session)
 
+        # Get subjects and save them to the database
         smart_campus.course(token, user_id)
 
+        # Loop through the subjects and get attendance data for each
         subjects = session.query(UserCourseRelation).all()
         for subject in subjects:
             subject_num = subject.course_id
-            smart_campus.get_calander_data(token, subject_num)
+            smart_campus.get_calander_data(token, subject_num)  # 수정: get_calander_data 호출
             smart_campus.get_date(token, subject_num)
 
     except:
