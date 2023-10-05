@@ -2,18 +2,25 @@ from bs4 import BeautifulSoup
 import requests
 from datetime import datetime
 import psycopg2
-import dev_db
+import configuration
+import boto3
 
 # 데이터베이스에 연결 설정
 conn = psycopg2.connect(
-    host=dev_db.dev_host,
-    database=dev_db.dev_db_name,
-    user=dev_db.dev_user_name,
-    password=dev_db.dev_db_pw,
+    host=configuration.db_host,
+    database=configuration.db_name,
+    user=configuration.db_user_name,
+    password=configuration.db_pw,
     port=5432,
 )
 cursor = conn.cursor()
 
+# S3 클라이언트 생성
+s3 = boto3.client(
+    's3',
+    aws_access_key_id=configuration.aws_access_key_id,
+    aws_secret_access_key=configuration.aws_secret_access_key
+)
 
 def fun_system_crawling(value):
 
@@ -33,10 +40,6 @@ def fun_system_crawling(value):
 
         #image_url 크롤링
         data_link = data.find("a")
-        img_style = data.find("div", {"class": "cover"})["style"]
-        strat = img_style.index("(") + 1
-        end = img_style.index(")")
-        image_url = img_style[strat:end]
         image = []
 
         #생성시각 및 업데이트 시각 크롤링.
@@ -48,6 +51,10 @@ def fun_system_crawling(value):
 
         updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        # views 크롤링.
+        views_label = data.find("span", {"class": "hit"})
+        views_text = views_label.get_text(strip=True)
+        views = int(''.join(filter(str.isdigit, views_text)))
 
        #카테고리
         category = "펀시스템"
@@ -59,11 +66,6 @@ def fun_system_crawling(value):
         soup_content = BeautifulSoup(html_content_text, "html.parser")
         content = ""
 
-        # views 크롤링.
-        views_label = soup_content.find("label", {"class": "hit"})
-        views_text = views_label.get_text(strip=True)
-        views = int(''.join(filter(str.isdigit, views_text)))
-
         wysiwyg_content = soup_content.find("div", {"data-role": "wysiwyg-content"})
 
         for tag in wysiwyg_content(["p", "table"]):
@@ -74,7 +76,10 @@ def fun_system_crawling(value):
                     image.append(img_src)
                 elif tag.find("a"):
                     link_tag = tag.find("a")
-                    link_href = link_tag["href"]
+                    if "href" in link_tag.attrs:
+                        link_href = link_tag["href"]
+                    else:
+                        link_href = ""
                     link_text = link_tag.get_text(strip=True)
                     content += f"Link: {link_text} - {link_href}\n"
                 elif tag.find("iframe"):
@@ -93,10 +98,22 @@ def fun_system_crawling(value):
                         row_contents.append(cell.get_text(strip=True))
                     content += "\t/ ".join(row_contents) + "\n"
 
+        content = content.replace("'", "''")
+
+
+        # 문자열을 바이트로 인코딩하여 S3에 업로드
+        s3.put_object(
+            Bucket=configuration.bucket_name,
+            Key=configuration.file_path,
+            Body=content.encode('utf-8')
+        )
+
+        content = f'https: // s3.amazonaws.com / {configuration.bucket_name} / {configuration.file_path}'
+
         #DB INSERT
         cursor.execute(
             f"""
-            INSERT INTO notice.notice_fs (title, content, image_url, url, created_at, updated_at,category,views)
+            INSERT INTO notice.notice_fs (title, content, image_url, url, created_at, updated_at, category, views)
             VALUES ('{title}', '{content}', ARRAY[{image}]::text[],'{content_url}', '{created_at}', '{updated_at}','{category}','{views}')
             """,
         )
