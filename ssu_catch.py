@@ -152,30 +152,30 @@ class Content(Base):  # Crawling 결과를 담는 객체
 
 
 def ssu_catch_crawling():
-    # try:
-    page = 1  # 1~
-    base_url = URL + "/page/{0}".format(page)
-    req = requests.get(base_url)
+    try:
+        page = 1  # 1~
+        base_url = URL + "/page/{0}".format(page)
+        req = requests.get(base_url)
 
-    soup = BeautifulSoup(req.text, 'lxml')
-    content = soup.find(class_='notice-lists').children
+        soup = BeautifulSoup(req.text, 'lxml')
+        content = soup.find(class_='notice-lists').children
 
-    content_iterator = iter(content)
-    for i in range(3):
-        next(content_iterator)
+        content_iterator = iter(content)
+        for i in range(3):
+            next(content_iterator)
 
-    content_list = []
-    for (idx, item) in enumerate(content_iterator):  # 핵심 크롤링 부분
-        if idx % 2 == 0:
-            content_list.append(Content(item.find('div')))
+        content_list = []
+        for (idx, item) in enumerate(content_iterator):  # 핵심 크롤링 부분
+            if idx % 2 == 0:
+                content_list.append(Content(item.find('div')))
 
-    with session_maker() as session:
-        for content in content_list:
-            session.add(content)
-        session.commit()
+        with session_maker() as session:
+            for content in content_list:
+                session.add(content)
+            session.commit()
 
-    # except (Exception,):
-    #     return JSONResponse(content="Internal Server Error", status_code=500)
+    except (Exception,):
+        return JSONResponse(content="Internal Server Error", status_code=500)
 
     return JSONResponse(content="OK", status_code=200)
 
