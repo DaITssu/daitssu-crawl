@@ -7,24 +7,36 @@ from sqlalchemy import create_engine, Table, MetaData
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime, String
 import sqlalchemy
-import dev_db
+import boto3
+import configuration
 
 URL = "http://cse.ssu.ac.kr/03_sub/01_sub.htm"
 AI_BASE_URL = "http://aix.ssu.ac.kr/"
 
 Base = declarative_base()
+BaseAI = declarative_base()
 
 db_url = sqlalchemy.engine.URL.create(
     drivername="postgresql",
-    username=dev_db.dev_user_name,
-    password=dev_db.dev_db_pw,
-    host=dev_db.dev_host,
-    database=dev_db.dev_db_name
+    username=configuration.db_user_name,
+    password=configuration.db_pw,
+    host=configuration.db_host,
+    database=configuration.db_name
 )
 
 engine = create_engine(db_url)
 session_maker = sessionmaker(autoflush=False, autocommit=False, bind=engine)
 metadata_obj = MetaData()
+
+def save_to_s3(file_name):
+    s3 = boto3.resource("s3")
+    bucket_name = configuration.bucket_name
+    bucket = s3.Bucket(bucket_name)
+
+    local_file = file_name
+    obj_file = file_name
+
+    bucket.upload_file(local_file, obj_file)
 
 # main.department 구조
 class Department(Base):
@@ -98,10 +110,8 @@ class ComputerNotification(Base):
         ))
 
 
-class AiNotification(Base):
-    __tablename__ = "notice"
-    # schema를 notice로 하면 컴퓨터 학부와 겹쳐서 error가 발생합니다.
-    # ai_notice를 만들어야 할 것 같습니다. 
+class AiNotification(BaseAI):
+    __tablename__ = "notice" 
     __table_args__ = {"schema": "notice"}
     id = Column(Integer, primary_key=True)
     title = Column(CHAR(1024))
@@ -112,6 +122,7 @@ class AiNotification(Base):
     file_url = Column(ARRAY(CHAR(2048)))
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
+    views = Column(Integer)
 
     def __init__(self, row: bs4.element.Tag):
         childrens = row.find_all("td")
@@ -134,6 +145,16 @@ class AiNotification(Base):
         for content in contents:
             self.content += content.text
 
+        if (len(self.content.encode("utf-8"))> 2048):
+            file_name = "AI" + str(datetime.now().strftime("%Y%m%d%H%M%S")) + ".txt"
+
+            with open(file_name, "w", encoding="utf-8") as file:
+                file.write(self.content)
+
+            save_to_s3(file_name)
+            self.content = f'https://{configuration.bucket_name}.s3.amazonaws.com/{configuration.file_path}{file_name}'
+
+
         # 카테고리
         self.category = "AI융합학부"
 
@@ -146,7 +167,9 @@ class AiNotification(Base):
         contents = soup.find("table", class_="table").find_all("li")
         for content in contents:
             link_tag = content.find("a")
-            file_link.append(AI_BASE_URL + link_tag["href"])
+
+            if link_tag is not None and "href" in link_tag.attrs:
+                file_link.append(AI_BASE_URL + link_tag["href"])
 
         self.file_url = file_link
 
@@ -157,12 +180,17 @@ class AiNotification(Base):
         # 업데이트 시각
         self.updated_at = datetime.now().strftime("%Y-%m-%d")
 
+        # 조회수
+        self.views = childrens[3].text.strip()
+
+        # 학과
         with engine.connect() as connect:
             department_table = Table(
                 "department", metadata_obj, schema="main", autoload_with=engine
             )
             query = department_table.select().where(department_table.c.name == "AI융합학부")
             results = connect.execute(query)
+            
             for result in results:
                 self.department_id = result.id
 
@@ -213,7 +241,8 @@ def ai_department_crawling(value):
 
     with session_maker() as session:
         for result in results:
-            # department.id가 NULL 값이 경우, department에 AI융합학부 column 추가
+            '''
+            # department.id가 NULL 값인 경우, main.department에 'AI융합학부' column 추가
             if result.department_id is None:
                 new_department = Department(
                     id = 4,
@@ -227,6 +256,7 @@ def ai_department_crawling(value):
                 session.close()
 
                 result.department_id = new_department.id
+            '''
 
             session.add(result)
             # print(result)  # db 삽입 내용 확인 출력문
@@ -235,7 +265,7 @@ def ai_department_crawling(value):
 
 
 def departments_crawling(value):
-    computer_department_crawling(value)
+    # computer_department_crawling(value)
     ai_department_crawling(value)
 
 if __name__ == "__main__":
