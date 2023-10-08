@@ -99,7 +99,7 @@ class SmartCampus:
             data = response.json()
             for module in data:
                 course_title = module["name"]
-                course_title = course_title[:32]
+                course_title = course_title
                 course_id = module["id"]
                 color_code = self.color_list[cnt - 1] if cnt < 11 else self.over_color
                 self.save_course_data(course_id, course_title, color_code)
@@ -157,7 +157,7 @@ class SmartCampus:
                                                      course=course_name.name,
                                                      due_at=schedule_time,
                                                      is_completed=status,
-                                                     name=item.get("title")[:32],
+                                                     name=item.get("title"),
                                                      created_at=current_time,
                                                      updated_at=current_time,
                                                      user_id = user_id
