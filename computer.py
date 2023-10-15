@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, Table, MetaData
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime
 import sqlalchemy
-import dev_db
+import configuration
 
 from fastapi.responses import JSONResponse
 
@@ -16,10 +16,10 @@ Base = declarative_base()
 
 db_url = sqlalchemy.engine.URL.create(
     drivername="postgresql",
-    username=dev_db.dev_user_name,
-    password=dev_db.dev_db_pw,
-    host=dev_db.dev_host,
-    database=dev_db.dev_db_name
+    username=configuration.db_user_name,
+    password=configuration.db_pw,
+    host=configuration.db_host,
+    database=configuration.db_name
 )
 
 engine = create_engine(db_url)
