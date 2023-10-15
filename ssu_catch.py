@@ -94,7 +94,9 @@ class Content(Base):  # Crawling 결과를 담는 객체
                 self.file_url.append(item['href'])
 
         # RDB 에 경로 저장
-        self.content = "notice/Ssu_catch" + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + ".txt"
+        self.content = ("https://{0}.s3.amazonaws.com/{1}notice/SsuCatch"
+                        .format(configuration.bucket_name, configuration.file_path)
+                        + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + ".txt")
 
         # s3에 content 저장
         s3.put_object(Body=real_content,
