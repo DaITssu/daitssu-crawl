@@ -61,7 +61,9 @@ class ComputerNotification(Base):
         content = soup.find(summary='글보기').findAll("td")
         self.views = int(content[1].findAll('dd')[1].text.split()[0])
         real_content = content[2].text.strip()[:2048]  # content
-        self.content = "notice/CSE" + datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + ".txt"
+        self.content = ("https://{0}.s3.amazonaws.com/{1}notice/CSE"
+                        .format(configuration.bucket_name, configuration.file_path)
+                        + datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + ".txt")
 
         s3.put_object(Body=real_content,
                       Bucket=configuration.bucket_name,
@@ -103,7 +105,6 @@ class ComputerNotification(Base):
 
 
 def computer_department_crawling():
-
     try:
         page = 1  # 1 ~
         base_url = URL + "?page={0}".format(page)
@@ -119,9 +120,9 @@ def computer_department_crawling():
             for result in results:
                 session.add(result)
             session.commit()
-    except (Exception, ):
+    except (Exception,):
         return JSONResponse(content="Internal Server Error", status_code=500)
-    
+
     return JSONResponse(content="OK", status_code=200)
 
 
