@@ -2,13 +2,17 @@ name: Deploy to Amazon Lambda CI/CD
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "feat/ci-cd" ]
 
 env:
   AWS_REGION: ap-northeast-2
-  DEV_LAMBDA_FUNCTION_NAME: dev-daitssu-crawl
-  PROD_LAMBDA_FUNCTION_NAME: daitssu-crawl
-  LAMBDA_HANDLER: lambda_function.lambda_handler
+  ECR_REPOSITORY: dev-daitssu-crawl
+  ECS_SERVICE: dev-daitssu-crawl
+  ECS_CLUSTER: dev-daitssu
+  ECS_TASK_DEFINITION: task-definition.json # set this to the path to your Amazon ECS task definition
+  #  # file, e.g. .aws/task-definition.json
+  CONTAINER_NAME: dev-daitssu-crawl
+  # containerDefinitions section of your task definition
 
 jobs:
   deploy:
@@ -25,6 +29,11 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Add Configuration
+        env:
+          CRAWL_DEV_SECRET: ${{secrets.CRAWL_DEV_CONFIGURATION}}
+        run: echo -e $CRAWL_DEV_SECRET > configuration.py
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -32,11 +41,35 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Packaging Lambda function
-        run: zip -r lambda_function.zip . -x "*.git*" "*.github*"
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Update Lambda (dev)
-        run: aws lambda update-function-code --function-name=${{ env.DEV_LAMBDA_FUNCTION_NAME }} --zip-file=fileb://lambda_function.zip
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Build a docker container and
+          # push it to ECR so that it can
+          # be deployed to ECS.
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Update Lambda (prod)
-        run: aws lambda update-function-code --function-name=${{ env.PROD_LAMBDA_FUNCTION_NAME }} --zip-file=fileb://lambda_function.zip
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
