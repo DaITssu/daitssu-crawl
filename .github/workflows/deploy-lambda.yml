@@ -1,4 +1,4 @@
-name: Deploy to Amazon Lambda CI/CD
+name: Deploy to Amazon ECS CI/CD
 
 on:
   push:
