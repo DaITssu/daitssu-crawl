@@ -1,0 +1,6 @@
+beautifulsoup4==4.12.2
+boto3==1.28.44
+psycopg2==2.9.7
+requests==2.31.0
+SQLAlchemy==2.0.20
+pycryptodome==3.19.0
