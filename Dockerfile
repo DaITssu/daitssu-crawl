@@ -4,7 +4,7 @@ FROM python:3.10 AS builder
 WORKDIR /app/
 COPY ./ /app/
 RUN pip install -r requirements.txt
-CMD ["python", "lambda_function.py"]
+CMD ["python", "server.py"]
 
 # FROM python:3.10 AS builder
 # COPY requirements.txt .
@@ -13,4 +13,4 @@ CMD ["python", "lambda_function.py"]
 #
 # FROM python:3.10-slim
 # COPY --from=builder /app /app
-# CMD ["python", "lambda_function.py"]
+# CMD ["python", "server.py"]
