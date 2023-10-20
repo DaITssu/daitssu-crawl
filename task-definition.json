@@ -7,9 +7,9 @@
       "cpu": 0,
       "portMappings": [
         {
-          "name": "dev-daitssu-crawl-800-tcp",
-          "containerPort": 800,
-          "hostPort": 800,
+          "name": "dev-daitssu-crawl",
+          "containerPort": 8080,
+          "hostPort": 8080,
           "protocol": "tcp",
           "appProtocol": "http"
         }

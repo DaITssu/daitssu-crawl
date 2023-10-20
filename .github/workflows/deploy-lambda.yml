@@ -7,7 +7,7 @@ on:
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: dev-daitssu-crawl
-  ECS_SERVICE: dev-daitssu-crawl
+  ECS_SERVICE: dev-daitssu-crawler
   ECS_CLUSTER: dev-daitssu
   ECS_TASK_DEFINITION: task-definition.json # set this to the path to your Amazon ECS task definition
   #  # file, e.g. .aws/task-definition.json
