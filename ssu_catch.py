@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base
 import sqlalchemy
-import dev_db
+import configuration
 from fastapi.responses import JSONResponse
 
 URL = "https://scatch.ssu.ac.kr/%ea%b3%b5%ec%a7%80%ec%82%ac%ed%95%ad"
@@ -15,10 +15,10 @@ Base = declarative_base()
 
 db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
     drivername="postgresql",
-    username=dev_db.dev_user_name,
-    password=dev_db.dev_db_pw,
-    host=dev_db.dev_host,
-    database=dev_db.dev_db_name
+    username=configuration.db_user_name,
+    password=configuration.db_pw,
+    host=configuration.db_host,
+    database=configuration.db_name
 )
 engine = create_engine(db_url)  # db 연결
 session_maker = sessionmaker()
@@ -160,4 +160,3 @@ def ssu_catch_crawling():
 
 if __name__ == "__main__":
     ssu_catch_crawling()
-    
