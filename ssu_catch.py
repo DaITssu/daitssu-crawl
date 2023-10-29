@@ -105,17 +105,17 @@ class Content(Base):  # Crawling 결과를 담는 객체
 
     def __init_category(self, column):  # 카테고리 크롤링
         category_dict = {
-            "학사": "학사",
-            "장학": "장학",
-            "국제교류": "국제교류",
-            "외국인유학생": "외국인유학생",
-            "채용": "채용",
-            "비교과·행사": "비교과·행사",
-            "교원채용": "교원채용",
-            "봉사": "봉사",
-            "교직": "교직",
-            "기타": "기타",
-            "코로나19관련소식": "코로나19관련소식"
+            "학사": "ACADEMICS",
+            "장학": "SCHOLARSHIP",
+            "국제교류": "INTERNATIONAL_EXCHANGE",
+            "외국인유학생": "INTERNATIONAL_STUDENT",
+            "채용": "RECRUITMENT",
+            "비교과·행사": "EXTRACURRICULAR",
+            "교원채용": "FACULTY_RECRUITMENT",
+            "봉사": "VOLUNTEERING",
+            "교직": "TEACHING",
+            "기타": "OTHER",
+            "코로나19관련소식": "COVID_19"
         }
         target = column.find('span', class_='label')
         self.category = category_dict.get(target.text.strip())
