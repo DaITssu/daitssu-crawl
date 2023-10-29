@@ -82,7 +82,7 @@ class ComputerNotification(Base):
         self.file_url = file_link
         self.title = children[1].text.strip()
         self.image_url = []
-        self.category = "컴퓨터학부"
+        self.category = "UNDERGRADUATE"
 
         created_date = list(map(int, children[3].text.split(".")))
         self.created_at = date(created_date[0], created_date[1], created_date[2])
