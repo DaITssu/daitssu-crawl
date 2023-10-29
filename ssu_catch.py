@@ -1,3 +1,5 @@
+import datetime
+
 import requests
 from bs4 import BeautifulSoup
 from datetime import date
@@ -7,6 +9,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 import sqlalchemy
 import configuration
 from fastapi.responses import JSONResponse
+import boto3
 
 URL = "https://scatch.ssu.ac.kr/%ea%b3%b5%ec%a7%80%ec%82%ac%ed%95%ad"
 
@@ -24,6 +27,8 @@ engine = create_engine(db_url)  # db 연결
 session_maker = sessionmaker()
 session_maker.configure(bind=engine)
 
+s3 = boto3.client("s3")
+
 
 class Content(Base):  # Crawling 결과를 담는 객체
     __tablename__ = "notice"
@@ -37,6 +42,7 @@ class Content(Base):  # Crawling 결과를 담는 객체
     file_url = Column(ARRAY(CHAR(2048)))
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
+    views = Column(Integer)
 
     def __init__(self, content):
         lists = list(content.children)
@@ -54,6 +60,9 @@ class Content(Base):  # Crawling 결과를 담는 객체
         current_column = next(columns)
         self.__init_department(lists[current_column])
 
+        current_column = next(columns)
+        self.__init_views(lists[current_column])
+
     def __init_date(self, column):  # 생성 시각 크롤링
         target = column.find('div')
         date_arr = [int(item) for item in target.text.strip().split(".")]
@@ -63,6 +72,7 @@ class Content(Base):  # Crawling 결과를 담는 객체
     def __init_contents(self, column):  # 본문 내용 크롤링
         self.image_url = []
         self.content = ""
+        real_content = ""
         self.file_url = []
 
         target = column.find('a')
@@ -75,12 +85,23 @@ class Content(Base):  # Crawling 결과를 담는 객체
             if img:
                 self.image_url.append(img['src'])
             else:
-                self.content += BeautifulSoup(tag.text, "lxml").text
+                real_content += BeautifulSoup(tag.text, "lxml").text
         file_urls = contents.find("ul")
+
         if file_urls:
             links = file_urls.findAll("a")
             for item in links:
                 self.file_url.append(item['href'])
+
+        # RDB 에 경로 저장
+        self.content = ("https://{0}.s3.amazonaws.com/{1}notice/SsuCatch"
+                        .format(configuration.bucket_name, configuration.file_path)
+                        + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + ".txt")
+
+        # s3에 content 저장
+        s3.put_object(Body=real_content,
+                      Bucket=configuration.bucket_name,
+                      Key=self.content)
 
     def __init_category(self, column):  # 카테고리 크롤링
         category_dict = {
@@ -110,6 +131,9 @@ class Content(Base):  # Crawling 결과를 담는 객체
             results = connect.execute(query)
             for result in results:
                 self.department_id = result.id
+
+    def __init_views(self, column):
+        self.views = int(column.text.strip())
 
     def __str__(self) -> str:
         return "title: {0}\n" \
@@ -148,13 +172,13 @@ def ssu_catch_crawling():
                 content_list.append(Content(item.find('div')))
 
         with session_maker() as session:
-
             for content in content_list:
                 session.add(content)
             session.commit()
-    except:
+
+    except (Exception,):
         return JSONResponse(content="Internal Server Error", status_code=500)
-    
+
     return JSONResponse(content="OK", status_code=200)
 
 

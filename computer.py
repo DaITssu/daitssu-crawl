@@ -1,3 +1,5 @@
+import datetime
+
 import bs4.element
 import requests
 from bs4 import BeautifulSoup
@@ -7,6 +9,8 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime
 import sqlalchemy
 import configuration
+import boto3
+
 
 from fastapi.responses import JSONResponse
 
@@ -26,6 +30,8 @@ engine = create_engine(db_url)
 session_maker = sessionmaker(autoflush=False, autocommit=False, bind=engine)
 metadata_obj = MetaData()
 
+s3 = boto3.client("s3")
+
 
 class ComputerNotification(Base):
     __tablename__ = "notice"
@@ -36,9 +42,10 @@ class ComputerNotification(Base):
     content = Column(CHAR(2048))
     category = Column(CHAR(32))
     image_url = Column(ARRAY(CHAR(2048)))
-    file_url = Column(ARRAY(CHAR(2048)))  # file_url을 ARRYAY로 했을 때, 오류 발생. 그냥 문자열로 하니까 성공. 확인 필요
+    file_url = Column(ARRAY(CHAR(2048)))
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
+    views = Column(Integer)
 
     def __init__(self, row: bs4.element.Tag):
         children = row.findAll("td")
@@ -53,7 +60,16 @@ class ComputerNotification(Base):
         req = requests.get(self.__link)
         soup = BeautifulSoup(req.text, 'lxml')
         content = soup.find(summary='글보기').findAll("td")
-        self.content = content[2].text.strip()[:2048]  # content
+        self.views = int(content[1].findAll('dd')[1].text.split()[0])
+        real_content = content[2].text.strip()[:2048]  # content
+        self.content = ("https://{0}.s3.amazonaws.com/{1}notice/CSE"
+                        .format(configuration.bucket_name, configuration.file_path)
+                        + datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + ".txt")
+
+        s3.put_object(Body=real_content,
+                      Bucket=configuration.bucket_name,
+                      Key=self.content)
+
         file_container = content[3].find(class_='file')
         files = None
         file_link = []
@@ -90,7 +106,6 @@ class ComputerNotification(Base):
 
 
 def computer_department_crawling():
-
     try:
         page = 1  # 1 ~
         base_url = URL + "?page={0}".format(page)
@@ -106,11 +121,11 @@ def computer_department_crawling():
             for result in results:
                 session.add(result)
             session.commit()
-    except:
+    except (Exception,):
         return JSONResponse(content="Internal Server Error", status_code=500)
-    
+
     return JSONResponse(content="OK", status_code=200)
 
 
 if __name__ == "__main__":
-    computer_department_crawling()
+    print(computer_department_crawling().status_code)
