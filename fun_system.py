@@ -4,6 +4,7 @@ from datetime import datetime
 import psycopg2
 import configuration
 import boto3
+from enum import Enum
 
 # 데이터베이스에 연결 설정
 conn = psycopg2.connect(
@@ -21,6 +22,29 @@ s3 = boto3.client(
     aws_access_key_id=configuration.aws_access_key_id,
     aws_secret_access_key=configuration.aws_secret_access_key
 )
+
+class Category(Enum):
+    전체 = "ALL"
+    구독 = "SUBSCRIPTION"
+    학습역량 = "LEARNING_SKILLS"
+    공모전 = "COMPETITION"
+    경진대회 = "COMPETITION"
+    자격증 = "CERTIFICATION"
+    특강 = "CERTIFICATION"
+    학생활동 = "STUDENT_ACTIVITIES"
+    해외연수 = "STUDY_ABROAD"
+    교환학생 = "STUDY_ABROAD"
+    인턴 = "INTERNSHIP"
+    봉사 = "VOLUNTEERING"
+    체험활동 = "EXPERIENTIAL_ACTIVITIES"
+    심리 = "COUNSELING"
+    상담 = "COUNSELING"
+    진단 = "COUNSELING"
+    진로지원 = "CAREER_SUPPORT"
+    창업지원 = "STARTUP_SUPPORT"
+    취업지원 = "EMPLOYMENT_SUPPORT"
+
+
 
 def fun_system_crawling(value):
 
@@ -55,9 +79,6 @@ def fun_system_crawling(value):
         views_label = data.find("span", {"class": "hit"})
         views_text = views_label.get_text(strip=True)
         views = int(''.join(filter(str.isdigit, views_text)))
-
-       #카테고리
-        category = "펀시스템"
 
         # content 크롤링
         content_url = "https://fun.ssu.ac.kr" + data_link.get("href")
@@ -98,23 +119,34 @@ def fun_system_crawling(value):
                         row_contents.append(cell.get_text(strip=True))
                     content += "\t/ ".join(row_contents) + "\n"
 
-        content = content.replace("'", "''")
+        # category 크롤링.
+        target = soup_content.find("div", {"class": "info"})
+        category_element = target.find("div", {"class": "category"})
+        i_tag = category_element.find('i', class_='fa fa-angle-right')
+        if i_tag:
+            category_text = i_tag.find_previous_sibling(string=True).strip()
+        else:
+            category_text = category_element.get_text(strip=True)
+
+        try:
+            category = Category[category_text].value
+        except KeyError:
+            category = "Unknown"
 
 
+        content_file = "notice_fs/FUN" + datetime.now().strftime("%Y%m%d%H%M%S") + ".txt"
         # 문자열을 바이트로 인코딩하여 S3에 업로드
         s3.put_object(
+            Body=content.encode('utf-8'),
             Bucket=configuration.bucket_name,
-            Key=configuration.file_path,
-            Body=content.encode('utf-8')
+            Key=configuration.file_path+content_file
         )
-
-        content = f'https: // s3.amazonaws.com / {configuration.bucket_name} / {configuration.file_path}'
 
         #DB INSERT
         cursor.execute(
             f"""
             INSERT INTO notice.notice_fs (title, content, image_url, url, created_at, updated_at, category, views)
-            VALUES ('{title}', '{content}', ARRAY[{image}]::text[],'{content_url}', '{created_at}', '{updated_at}','{category}','{views}')
+            VALUES ('{title}', '{content_file}', ARRAY[{image}]::text[],'{content_url}', '{created_at}', '{updated_at}','{category}','{views}')
             """,
         )
 
