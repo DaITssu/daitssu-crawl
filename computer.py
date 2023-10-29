@@ -11,6 +11,7 @@ import sqlalchemy
 import configuration
 import boto3
 
+
 from fastapi.responses import JSONResponse
 
 URL = "http://cse.ssu.ac.kr/03_sub/01_sub.htm"
