@@ -125,9 +125,9 @@ def computer_department_crawling():
                 session.add(result)
             session.commit()
     except botocore.exceptions.NoCredentialsError as e:
-        return JSONResponse(content=e, status_code=403)
+        return JSONResponse(content=e.args, status_code=403)
     except Exception as e:
-        return JSONResponse(content=e, status_code=500)
+        return JSONResponse(content=e.args, status_code=500)
 
     return JSONResponse(content="OK", status_code=200)
 
