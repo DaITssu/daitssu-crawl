@@ -85,9 +85,9 @@ def fun_system_crawling(value):
         html_content = requests.get(content_url)
         html_content_text = html_content.text
         soup_content = BeautifulSoup(html_content_text, "html.parser")
-        content = ""
 
         wysiwyg_content = soup_content.find("div", {"data-role": "wysiwyg-content"})
+        content = wysiwyg_content.text
 
         for tag in wysiwyg_content(["p", "table"]):
             if tag.name == "p":
@@ -95,29 +95,7 @@ def fun_system_crawling(value):
                 if tag.find("img"):
                     img_src = tag.find("img")["src"]
                     image.append(img_src)
-                elif tag.find("a"):
-                    link_tag = tag.find("a")
-                    if "href" in link_tag.attrs:
-                        link_href = link_tag["href"]
-                    else:
-                        link_href = ""
-                    link_text = link_tag.get_text(strip=True)
-                    content += f"Link: {link_text} - {link_href}\n"
-                elif tag.find("iframe"):
-                    link_tag = tag.find("iframe")
-                    link_href = link_tag["src"]
-                    link_text = link_tag.get_text(strip=True)
-                    content += f"Video Link: {link_text} - {link_href}\n"
-                else:
-                    text_content = tag.get_text(strip=True)
-                    content += f"{text_content}\n"
 
-            elif tag.name == "table":
-                for row in tag.find_all("tr"):
-                    row_contents = []
-                    for cell in row.find_all(["td", "th"]):
-                        row_contents.append(cell.get_text(strip=True))
-                    content += "\t/ ".join(row_contents) + "\n"
 
         # category 크롤링.
         target = soup_content.find("div", {"class": "info"})
@@ -146,7 +124,7 @@ def fun_system_crawling(value):
         cursor.execute(
             f"""
             INSERT INTO notice.notice_fs (title, content, image_url, url, created_at, updated_at, category, views)
-            VALUES ('{title}', '{content_file}', ARRAY[{image}]::text[],'{content_url}', '{created_at}', '{updated_at}','{category}','{views}')
+            VALUES ('{title}', '{"https://daitssu-dev.s3.amazonaws.com/dev/"+content_file}', ARRAY[{image}]::text[],'{content_url}', '{created_at}', '{updated_at}','{category}','{views}')
             """,
         )
 
