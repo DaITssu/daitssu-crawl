@@ -30,7 +30,9 @@ engine = create_engine(db_url)
 session_maker = sessionmaker(autoflush=False, autocommit=False, bind=engine)
 metadata_obj = MetaData()
 
-s3 = boto3.client("s3")
+s3 = boto3.client("s3",
+                  aws_access_key_id=configuration.aws_access_key_id,
+                  aws_secret_access_key=configuration.aws_secret_access_key)
 
 
 class ComputerNotification(Base):
