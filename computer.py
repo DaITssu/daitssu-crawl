@@ -1,5 +1,6 @@
 import datetime
 
+import botocore.exceptions
 import bs4.element
 import requests
 from bs4 import BeautifulSoup
@@ -123,8 +124,10 @@ def computer_department_crawling():
             for result in results:
                 session.add(result)
             session.commit()
-    except (Exception,):
-        return JSONResponse(content="Internal Server Error", status_code=500)
+    except botocore.exceptions.NoCredentialsError as e:
+        return JSONResponse(content=e, status_code=403)
+    except Exception as e:
+        return JSONResponse(content=e, status_code=500)
 
     return JSONResponse(content="OK", status_code=200)
 
