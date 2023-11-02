@@ -27,7 +27,9 @@ engine = create_engine(db_url)  # db 연결
 session_maker = sessionmaker()
 session_maker.configure(bind=engine)
 
-s3 = boto3.client("s3")
+s3 = boto3.client("s3",
+                  aws_access_key_id=configuration.aws_access_key_id,
+                  aws_secret_access_key=configuration.aws_secret_access_key)
 
 
 class Content(Base):  # Crawling 결과를 담는 객체
