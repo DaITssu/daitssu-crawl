@@ -96,15 +96,15 @@ class Content(Base):  # Crawling 결과를 담는 객체
             for item in links:
                 self.file_url.append(item['href'])
 
+        file_path = ("{0}notice/SsuCatch".format(configuration.file_path)
+                     + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + ".txt")
         # RDB 에 경로 저장
-        self.content = ("https://{0}.s3.amazonaws.com/{1}notice/SsuCatch"
-                        .format(configuration.bucket_name, configuration.file_path)
-                        + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + ".txt")
+        self.content = "https://{0}.s3.amazonaws.com/".format(configuration.bucket_name) + file_path
 
         # s3에 content 저장
         s3.put_object(Body=real_content,
                       Bucket=configuration.bucket_name,
-                      Key=self.content)
+                      Key=file_path)
 
     def __init_category(self, column):  # 카테고리 크롤링
         category_dict = {

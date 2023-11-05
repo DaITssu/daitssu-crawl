@@ -65,13 +65,13 @@ class ComputerNotification(Base):
         content = soup.find(summary='글보기').findAll("td")
         self.views = int(content[1].findAll('dd')[1].text.split()[0])
         real_content = content[2].text.strip()[:2048]  # content
-        self.content = ("https://{0}.s3.amazonaws.com/{1}notice/CSE"
-                        .format(configuration.bucket_name, configuration.file_path)
-                        + datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + ".txt")
+        file_path = ("{0}notice/CSE".format(configuration.file_path)
+                     + datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + ".txt")
+        self.content = "https://{0}.s3.amazonaws.com/".format(configuration.bucket_name) + file_path
 
         s3.put_object(Body=real_content,
                       Bucket=configuration.bucket_name,
-                      Key=self.content)
+                      Key=file_path)
 
         file_container = content[3].find(class_='file')
         files = None
