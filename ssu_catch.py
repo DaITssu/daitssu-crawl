@@ -9,7 +9,7 @@ import configuration
 from fastapi.responses import JSONResponse
 import boto3
 
-from control_s3 import update_notification
+from control_db import update_notification
 from notification import Notification
 
 URL = "https://scatch.ssu.ac.kr/%ea%b3%b5%ec%a7%80%ec%82%ac%ed%95%ad"
