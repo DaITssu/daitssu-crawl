@@ -1,16 +1,16 @@
-import datetime
-
 import botocore.exceptions
 import requests
 from bs4 import BeautifulSoup
 from datetime import date
 from sqlalchemy import create_engine, MetaData, Table
-from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base
 import sqlalchemy
 import configuration
 from fastapi.responses import JSONResponse
 import boto3
+
+from control_s3 import update_notification
+from notification import Notification
 
 URL = "https://scatch.ssu.ac.kr/%ea%b3%b5%ec%a7%80%ec%82%ac%ed%95%ad"
 
@@ -33,19 +33,7 @@ s3 = boto3.client("s3",
                   aws_secret_access_key=configuration.aws_secret_access_key)
 
 
-class Content(Base):  # Crawling 결과를 담는 객체
-    __tablename__ = "notice"
-    __table_args__ = {"schema": "notice"}
-    id = Column(Integer, primary_key=True)
-    title = Column(CHAR(1024))
-    department_id = Column(Integer)
-    content = Column(CHAR(2048))
-    category = Column(CHAR(32))
-    image_url = Column(ARRAY(CHAR(2048)))
-    file_url = Column(ARRAY(CHAR(2048)))
-    created_at = Column(DateTime)
-    updated_at = Column(DateTime)
-    views = Column(Integer)
+class Content(Notification):  # Crawling 결과를 담는 객체
 
     def __init__(self, content):
         lists = list(content.children)
@@ -60,8 +48,8 @@ class Content(Base):  # Crawling 결과를 담는 객체
         self.__init_category(lists[current_column])
         self.__init_title(lists[current_column])
 
-        current_column = next(columns)
-        self.__init_department(lists[current_column])
+        self.__init_department()
+        next(columns)
 
         current_column = next(columns)
         self.__init_views(lists[current_column])
@@ -96,15 +84,7 @@ class Content(Base):  # Crawling 결과를 담는 객체
             for item in links:
                 self.file_url.append(item['href'])
 
-        file_path = ("{0}notice/SsuCatch".format(configuration.file_path)
-                     + datetime.datetime.now().strftime("%Y%m%d%H%M%S") + ".txt")
-        # RDB 에 경로 저장
-        self.content = "https://{0}.s3.amazonaws.com/".format(configuration.bucket_name) + file_path
-
-        # s3에 content 저장
-        s3.put_object(Body=real_content,
-                      Bucket=configuration.bucket_name,
-                      Key=file_path)
+        self.content = real_content
 
     def __init_category(self, column):  # 카테고리 크롤링
         category_dict = {
@@ -127,7 +107,7 @@ class Content(Base):  # Crawling 결과를 담는 객체
         target = column.findAll("span")[2]
         self.title = target.text.strip()
 
-    def __init_department(self, column):  # 등록 부서 크롤링
+    def __init_department(self):  # 등록 부서 크롤링
         with engine.connect() as connect:
             department_table = Table("department", metadata_obj, schema="main", autoload_with=engine)
             query = department_table.select().where(department_table.c.name == "슈케치")
@@ -173,10 +153,11 @@ def ssu_catch_crawling():
         for (idx, item) in enumerate(content_iterator):  # 핵심 크롤링 부분
             if idx % 2 == 0:
                 content_list.append(Content(item.find('div')))
+        notification_table = Table("notice", metadata_obj, schema="notice", autoload_with=engine)
 
         with session_maker() as session:
-            for content in content_list:
-                session.add(content)
+            for result in content_list:
+                update_notification("SsuCatch", result, session, s3, notification_table)
             session.commit()
 
     except botocore.exceptions.NoCredentialsError as e:
