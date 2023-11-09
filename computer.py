@@ -1,23 +1,20 @@
-import datetime
-
 import botocore.exceptions
 import bs4.element
 import requests
 from bs4 import BeautifulSoup
 from datetime import date
 from sqlalchemy import create_engine, Table, MetaData
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime
+from sqlalchemy.orm import sessionmaker
 import sqlalchemy
 import configuration
 import boto3
 
-
 from fastapi.responses import JSONResponse
 
-URL = "http://cse.ssu.ac.kr/03_sub/01_sub.htm"
+from control_db import update_notification
+from notification import Notification
 
-Base = declarative_base()
+URL = "http://cse.ssu.ac.kr/03_sub/01_sub.htm"
 
 db_url = sqlalchemy.engine.URL.create(
     drivername="postgresql",
@@ -36,20 +33,7 @@ s3 = boto3.client("s3",
                   aws_secret_access_key=configuration.aws_secret_access_key)
 
 
-class ComputerNotification(Base):
-    __tablename__ = "notice"
-    __table_args__ = {"schema": "notice"}
-    id = Column(Integer, primary_key=True)
-    title = Column(CHAR(1024))
-    department_id = Column(Integer)
-    content = Column(CHAR(2048))
-    category = Column(CHAR(32))
-    image_url = Column(ARRAY(CHAR(2048)))
-    file_url = Column(ARRAY(CHAR(2048)))
-    created_at = Column(DateTime)
-    updated_at = Column(DateTime)
-    views = Column(Integer)
-
+class ComputerNotification(Notification):
     def __init__(self, row: bs4.element.Tag):
         children = row.findAll("td")
         number = children[0].text.strip()
@@ -64,14 +48,7 @@ class ComputerNotification(Base):
         soup = BeautifulSoup(req.text, 'lxml')
         content = soup.find(summary='글보기').findAll("td")
         self.views = int(content[1].findAll('dd')[1].text.split()[0])
-        real_content = content[2].text.strip()[:2048]  # content
-        self.content = ("https://{0}.s3.amazonaws.com/{1}notice/CSE"
-                        .format(configuration.bucket_name, configuration.file_path)
-                        + datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + ".txt")
-
-        s3.put_object(Body=real_content,
-                      Bucket=configuration.bucket_name,
-                      Key=self.content)
+        self.content = content[2].text.strip()[:2048]  # content
 
         file_container = content[3].find(class_='file')
         files = None
@@ -114,15 +91,18 @@ def computer_department_crawling():
         base_url = URL + "?page={0}".format(page)
         req = requests.get(base_url)
         soup = BeautifulSoup(req.text, 'lxml')
-        content = soup.find('table', summary='글목록').find('tbody')
+        content: bs4.element.Tag = soup.find('table', summary='글목록').find('tbody')
         rows = content.findChildren("tr")
         results = []
         for row in rows:
             results.append(ComputerNotification(row))
 
+        notification_table = Table("notice", metadata_obj, schema="notice", autoload_with=engine)
+
         with session_maker() as session:
             for result in results:
-                session.add(result)
+                update_notification("CSE", result, session, s3, notification_table)
+
             session.commit()
     except botocore.exceptions.NoCredentialsError as e:
         return JSONResponse(content=e.args, status_code=403)
@@ -133,4 +113,4 @@ def computer_department_crawling():
 
 
 if __name__ == "__main__":
-    print(computer_department_crawling().status_code)
+    print(computer_department_crawling().body)
