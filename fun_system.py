@@ -111,13 +111,14 @@ def fun_system_crawling(value):
         except KeyError:
             category = "Unknown"
 
-
         content_file = "notice_fs/FUN" + datetime.now().strftime("%Y%m%d%H%M%S") + ".txt"
+        s3_key = content_file
+
         # 문자열을 바이트로 인코딩하여 S3에 업로드
         s3.put_object(
             Body=content.encode('utf-8'),
             Bucket=configuration.bucket_name,
-            Key=configuration.file_path+content_file
+            Key=s3_key
         )
 
         #DB INSERT
