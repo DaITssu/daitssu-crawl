@@ -125,7 +125,7 @@ def fun_system_crawling(value):
         cursor.execute(
             f"""
             INSERT INTO notice.notice_fs (title, content, image_url, url, created_at, updated_at, category, views)
-            VALUES ('{title}', '{"https://daitssu-dev.s3.amazonaws.com/dev/"+content_file}', ARRAY[{image}]::text[],'{content_url}', '{created_at}', '{updated_at}','{category}','{views}')
+            VALUES ('{title}', '{"https://daitssu-dev.s3.amazonaws.com/daitssu-dev/"+content_file}', ARRAY[{image}]::text[],'{content_url}', '{created_at}', '{updated_at}','{category}','{views}')
             """,
         )
 
