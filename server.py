@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+import uvicorn
 from model.req_models import *
 
 app = FastAPI (
@@ -6,7 +7,6 @@ app = FastAPI (
     description="다잇슈 크롤링 서버 api 문서입니다.",
     version="1.0.0"
     )
-
 
 @app.post("/smart-campus/crawling")
 async def smart_campus_controller(smart_campus_token: SmartCampusToken):
@@ -53,3 +53,5 @@ async def computer_department_controller():
     result = computer_department_crawling()
     return result
 
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8080)

@@ -1,0 +1,89 @@
+{
+  "taskDefinitionArn": "arn:aws:ecs:ap-northeast-2:268306063505:task-definition/dev-daitssu:1",
+  "containerDefinitions": [
+    {
+      "name": "dev-daitssu-crawl",
+      "image": "268306063505.dkr.ecr.ap-northeast-2.amazonaws.com/dev-daitssu-crawl:latest",
+      "cpu": 0,
+      "portMappings": [
+        {
+          "name": "dev-daitssu-crawl",
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp",
+          "appProtocol": "http"
+        }
+      ],
+      "essential": true,
+      "environment": [],
+      "environmentFiles": [],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "ulimits": [],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-create-group": "true",
+          "awslogs-group": "/ecs/dev-daitssu-crawl",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ],
+  "family": "dev-daitssu",
+  "executionRoleArn": "arn:aws:iam::268306063505:role/ecsTaskExecutionRole",
+  "networkMode": "awsvpc",
+  "revision": 1,
+  "volumes": [],
+  "status": "ACTIVE",
+  "requiresAttributes": [
+    {
+      "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+    },
+    {
+      "name": "ecs.capability.execution-role-awslogs"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.ecr-auth"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.docker-remote-crawl.1.19"
+    },
+    {
+      "name": "ecs.capability.execution-role-ecr-pull"
+    },
+    {
+      "name": "ecs.capability.extensible-ephemeral-storage"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.docker-remote-crawl.1.18"
+    },
+    {
+      "name": "ecs.capability.task-eni"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.docker-remote-crawl.1.29"
+    }
+  ],
+  "placementConstraints": [],
+  "compatibilities": [
+    "EC2",
+    "FARGATE"
+  ],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "512",
+  "memory": "2048",
+  "ephemeralStorage": {
+    "sizeInGiB": 21
+  },
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "registeredAt": "2023-07-17T05:01:45.539Z",
+  "registeredBy": "arn:aws:iam::268306063505:root",
+  "tags": []
+}

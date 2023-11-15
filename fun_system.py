@@ -2,7 +2,7 @@ from bs4 import BeautifulSoup
 import requests
 from datetime import datetime
 import psycopg2
-import dev_db
+import configuration
 
 from fastapi.responses import JSONResponse
 
@@ -17,10 +17,10 @@ def do_fun_system_crawling():
 
     # 데이터베이스에 연결 설정
     conn = psycopg2.connect(
-        host=dev_db.dev_host,
-        database=dev_db.dev_db_name,
-        user=dev_db.dev_user_name,
-        password=dev_db.dev_db_pw,
+        host=configuration.db_host,
+        database=configuration.db_name,
+        user=configuration.db_user_name,
+        password=configuration.db_pw,
         port=5432,
     )
 
