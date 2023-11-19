@@ -10,9 +10,10 @@ import boto3
 import configuration
 from fastapi.responses import JSONResponse
 
-AI_BASE_URL = "http://aix.ssu.ac.kr/"
+from control_db import update_notification
+from notification import Notification
 
-BaseAI = declarative_base()
+AI_BASE_URL = "http://aix.ssu.ac.kr/"
 
 db_url = sqlalchemy.engine.URL.create(
     drivername="postgresql",
@@ -26,20 +27,14 @@ engine = create_engine(db_url)
 session_maker = sessionmaker(autoflush=False, autocommit=False, bind=engine)
 metadata_obj = MetaData()
 
-class AiNotification(BaseAI):
-    __tablename__ = "notice"
-    __table_args__ = {"schema": "notice"}
-    id = Column(Integer, primary_key=True)
-    title = Column(CHAR(1024))
-    department_id = Column(Integer)
-    content = Column(CHAR(2048))
-    category = Column(CHAR(32))
-    image_url = Column(ARRAY(CHAR(2048)))
-    file_url = Column(ARRAY(CHAR(2048)))
-    created_at = Column(DateTime)
-    updated_at = Column(DateTime)
-    views = Column(Integer)
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=configuration.aws_access_key_id,
+    aws_secret_access_key=configuration.aws_secret_access_key,
+)
 
+
+class AiNotification(Notification):
     def __init__(self, row: bs4.element.Tag):
         childrens = row.find_all("td")
 
@@ -133,16 +128,6 @@ class AiNotification(BaseAI):
                 self.department_id,
             )
         )
-    
-    def save_to_s3(file_names):
-        s3 = boto3.resource("s3")
-        bucket_name = configuration.bucket_name
-        bucket = s3.Bucket(bucket_name)
-
-        local_file = file_names
-        obj_file = file_names
-
-        bucket.upload_file(local_file, obj_file)
 
 
 def ai_department_crawling():
@@ -159,16 +144,19 @@ def ai_department_crawling():
         for row in rows[1:]:
             results.append(AiNotification(row))
 
+        notification_table = Table(
+            "notice", "metadata_obj", schema="notice", autoload_with=engine
+        )
+
         with session_maker() as session:
             for result in results:
-                session.add(result)
-                # print(result)  # db 삽입 내용 확인 출력문
+                update_notification = ("CSE", result, session, s3, notification_table)
 
             session.commit()
 
     except:
         return JSONResponse(content="Internal Server Error", status_code=500)
-    
+
     return JSONResponse(content="OK", status_code=200)
 
 
