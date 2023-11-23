@@ -1,11 +1,16 @@
+import botocore.exceptions
 import requests
 from bs4 import BeautifulSoup
 from datetime import date
 from sqlalchemy import create_engine, MetaData, Table
-from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base
 import sqlalchemy
-import dev_db
+import configuration
+from fastapi.responses import JSONResponse
+import boto3
+
+from control_db import update_notification
+from notification import Notification
 
 URL = "https://scatch.ssu.ac.kr/%ea%b3%b5%ec%a7%80%ec%82%ac%ed%95%ad"
 
@@ -14,28 +19,21 @@ Base = declarative_base()
 
 db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
     drivername="postgresql",
-    username=dev_db.dev_user_name,
-    password=dev_db.dev_db_pw,
-    host=dev_db.dev_host,
-    database=dev_db.dev_db_name
+    username=configuration.db_user_name,
+    password=configuration.db_pw,
+    host=configuration.db_host,
+    database=configuration.db_name
 )
 engine = create_engine(db_url)  # db 연결
 session_maker = sessionmaker()
 session_maker.configure(bind=engine)
 
+s3 = boto3.client("s3",
+                  aws_access_key_id=configuration.aws_access_key_id,
+                  aws_secret_access_key=configuration.aws_secret_access_key)
 
-class Content(Base):  # Crawling 결과를 담는 객체
-    __tablename__ = "notice"
-    __table_args__ = {"schema": "notice"}
-    id = Column(Integer, primary_key=True)
-    title = Column(CHAR(1024))
-    department_id = Column(Integer)
-    content = Column(CHAR(2048))
-    category = Column(CHAR(32))
-    image_url = Column(ARRAY(CHAR(2048)))
-    file_url = Column(ARRAY(CHAR(2048)))
-    created_at = Column(DateTime)
-    updated_at = Column(DateTime)
+
+class Content(Notification):  # Crawling 결과를 담는 객체
 
     def __init__(self, content):
         lists = list(content.children)
@@ -50,8 +48,11 @@ class Content(Base):  # Crawling 결과를 담는 객체
         self.__init_category(lists[current_column])
         self.__init_title(lists[current_column])
 
+        self.__init_department()
+        next(columns)
+
         current_column = next(columns)
-        self.__init_department(lists[current_column])
+        self.__init_views(lists[current_column])
 
     def __init_date(self, column):  # 생성 시각 크롤링
         target = column.find('div')
@@ -62,6 +63,7 @@ class Content(Base):  # Crawling 결과를 담는 객체
     def __init_contents(self, column):  # 본문 내용 크롤링
         self.image_url = []
         self.content = ""
+        real_content = ""
         self.file_url = []
 
         target = column.find('a')
@@ -74,26 +76,29 @@ class Content(Base):  # Crawling 결과를 담는 객체
             if img:
                 self.image_url.append(img['src'])
             else:
-                self.content += BeautifulSoup(tag.text, "lxml").text
+                real_content += BeautifulSoup(tag.text, "lxml").text
         file_urls = contents.find("ul")
+
         if file_urls:
             links = file_urls.findAll("a")
             for item in links:
                 self.file_url.append(item['href'])
 
+        self.content = real_content
+
     def __init_category(self, column):  # 카테고리 크롤링
         category_dict = {
-            "학사": "학사",
-            "장학": "장학",
-            "국제교류": "국제교류",
-            "외국인유학생": "외국인유학생",
-            "채용": "채용",
-            "비교과·행사": "비교과·행사",
-            "교원채용": "교원채용",
-            "봉사": "봉사",
-            "교직": "교직",
-            "기타": "기타",
-            "코로나19관련소식": "코로나19관련소식"
+            "학사": "ACADEMICS",
+            "장학": "SCHOLARSHIP",
+            "국제교류": "INTERNATIONAL_EXCHANGE",
+            "외국인유학생": "INTERNATIONAL_STUDENT",
+            "채용": "RECRUITMENT",
+            "비교과·행사": "EXTRACURRICULAR",
+            "교원채용": "FACULTY_RECRUITMENT",
+            "봉사": "VOLUNTEERING",
+            "교직": "TEACHING",
+            "기타": "OTHER",
+            "코로나19관련소식": "COVID_19"
         }
         target = column.find('span', class_='label')
         self.category = category_dict.get(target.text.strip())
@@ -102,13 +107,16 @@ class Content(Base):  # Crawling 결과를 담는 객체
         target = column.findAll("span")[2]
         self.title = target.text.strip()
 
-    def __init_department(self, column):  # 등록 부서 크롤링
+    def __init_department(self):  # 등록 부서 크롤링
         with engine.connect() as connect:
             department_table = Table("department", metadata_obj, schema="main", autoload_with=engine)
             query = department_table.select().where(department_table.c.name == "슈케치")
             results = connect.execute(query)
             for result in results:
                 self.department_id = result.id
+
+    def __init_views(self, column):
+        self.views = int(column.text.strip())
 
     def __str__(self) -> str:
         return "title: {0}\n" \
@@ -128,30 +136,37 @@ class Content(Base):  # Crawling 결과를 담는 객체
                     )
 
 
-def ssu_catch_crawling(value):
-    page = 1  # 1~
-    base_url = URL + "/page/{0}".format(page)
-    req = requests.get(base_url)
+def ssu_catch_crawling():
+    try:
+        page = 1  # 1~
+        base_url = URL + "/page/{0}".format(page)
+        req = requests.get(base_url)
 
-    soup = BeautifulSoup(req.text, 'lxml')
-    content = soup.find(class_='notice-lists').children
+        soup = BeautifulSoup(req.text, 'lxml')
+        content = soup.find(class_='notice-lists').children
 
-    content_iterator = iter(content)
-    for i in range(3):
-        next(content_iterator)
+        content_iterator = iter(content)
+        for i in range(3):
+            next(content_iterator)
 
-    content_list = []
-    for (idx, item) in enumerate(content_iterator):  # 핵심 크롤링 부분
-        if idx % 2 == 0:
-            content_list.append(Content(item.find('div')))
+        content_list = []
+        for (idx, item) in enumerate(content_iterator):  # 핵심 크롤링 부분
+            if idx % 2 == 0:
+                content_list.append(Content(item.find('div')))
+        notification_table = Table("notice", metadata_obj, schema="notice", autoload_with=engine)
 
-    with session_maker() as session:
+        with session_maker() as session:
+            for result in content_list:
+                update_notification("SsuCatch", result, session, s3, notification_table)
+            session.commit()
 
-        for content in content_list:
-            session.add(content)
-        session.commit()
+    except botocore.exceptions.NoCredentialsError as e:
+        return JSONResponse(content=e.args, status_code=403)
+    except Exception as e:
+        return JSONResponse(content=e.args, status_code=500)
+
+    return JSONResponse(content="OK", status_code=200)
 
 
 if __name__ == "__main__":
-    ssu_catch_crawling(1)
-    
+    ssu_catch_crawling()

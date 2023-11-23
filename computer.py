@@ -1,43 +1,39 @@
+import botocore.exceptions
 import bs4.element
 import requests
 from bs4 import BeautifulSoup
 from datetime import date
 from sqlalchemy import create_engine, Table, MetaData
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime
+from sqlalchemy.orm import sessionmaker
 import sqlalchemy
-import dev_db
+import configuration
+import boto3
+
+from fastapi.responses import JSONResponse
+
+from control_db import update_notification
+from notification import Notification
 
 URL = "http://cse.ssu.ac.kr/03_sub/01_sub.htm"
 
-Base = declarative_base()
-
 db_url = sqlalchemy.engine.URL.create(
     drivername="postgresql",
-    username=dev_db.dev_user_name,
-    password=dev_db.dev_db_pw,
-    host=dev_db.dev_host,
-    database=dev_db.dev_db_name
+    username=configuration.db_user_name,
+    password=configuration.db_pw,
+    host=configuration.db_host,
+    database=configuration.db_name
 )
 
 engine = create_engine(db_url)
 session_maker = sessionmaker(autoflush=False, autocommit=False, bind=engine)
 metadata_obj = MetaData()
 
+s3 = boto3.client("s3",
+                  aws_access_key_id=configuration.aws_access_key_id,
+                  aws_secret_access_key=configuration.aws_secret_access_key)
 
-class ComputerNotification(Base):
-    __tablename__ = "notice"
-    __table_args__ = {"schema": "notice"}
-    id = Column(Integer, primary_key=True)
-    title = Column(CHAR(1024))
-    department_id = Column(Integer)
-    content = Column(CHAR(2048))
-    category = Column(CHAR(32))
-    image_url = Column(ARRAY(CHAR(2048)))
-    file_url = Column(ARRAY(CHAR(2048)))  # file_url을 ARRYAY로 했을 때, 오류 발생. 그냥 문자열로 하니까 성공. 확인 필요
-    created_at = Column(DateTime)
-    updated_at = Column(DateTime)
 
+class ComputerNotification(Notification):
     def __init__(self, row: bs4.element.Tag):
         children = row.findAll("td")
         number = children[0].text.strip()
@@ -51,7 +47,9 @@ class ComputerNotification(Base):
         req = requests.get(self.__link)
         soup = BeautifulSoup(req.text, 'lxml')
         content = soup.find(summary='글보기').findAll("td")
+        self.views = int(content[1].findAll('dd')[1].text.split()[0])
         self.content = content[2].text.strip()[:2048]  # content
+
         file_container = content[3].find(class_='file')
         files = None
         file_link = []
@@ -64,7 +62,7 @@ class ComputerNotification(Base):
         self.file_url = file_link
         self.title = children[1].text.strip()
         self.image_url = []
-        self.category = "컴퓨터학부"
+        self.category = "UNDERGRADUATE"
 
         created_date = list(map(int, children[3].text.split(".")))
         self.created_at = date(created_date[0], created_date[1], created_date[2])
@@ -87,25 +85,32 @@ class ComputerNotification(Base):
         ))
 
 
-def computer_department_crawling(value):
-    page = 1  # 1 ~
-    base_url = URL + "?page={0}".format(page)
-    req = requests.get(base_url)
-    soup = BeautifulSoup(req.text, 'lxml')
-    content = soup.find('table', summary='글목록').find('tbody')
-    rows = content.findChildren("tr")
-    results = []
-    for row in rows:
-        results.append(ComputerNotification(row))
+def computer_department_crawling():
+    try:
+        page = 1  # 1 ~
+        base_url = URL + "?page={0}".format(page)
+        req = requests.get(base_url)
+        soup = BeautifulSoup(req.text, 'lxml')
+        content: bs4.element.Tag = soup.find('table', summary='글목록').find('tbody')
+        rows = content.findChildren("tr")
+        results = []
+        for row in rows:
+            results.append(ComputerNotification(row))
 
-    with session_maker() as session:
-        for result in results:
-            session.add(result)
-        session.commit()
+        notification_table = Table("notice", metadata_obj, schema="notice", autoload_with=engine)
 
+        with session_maker() as session:
+            for result in results:
+                update_notification("CSE", result, session, s3, notification_table)
 
-def departments_crawling(value):
-    computer_department_crawling(value)
+            session.commit()
+    except botocore.exceptions.NoCredentialsError as e:
+        return JSONResponse(content=e.args, status_code=403)
+    except Exception as e:
+        return JSONResponse(content=e.args, status_code=500)
+
+    return JSONResponse(content="OK", status_code=200)
+
 
 if __name__ == "__main__":
-    departments_crawling(1)
+    print(computer_department_crawling().body)

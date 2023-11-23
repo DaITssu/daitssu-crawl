@@ -3,6 +3,7 @@ import requests
 from datetime import datetime
 import psycopg2
 import configuration
+<<<<<<< HEAD
 import boto3
 from enum import Enum
 
@@ -15,6 +16,12 @@ conn = psycopg2.connect(
     port=5432,
 )
 cursor = conn.cursor()
+=======
+
+from fastapi.responses import JSONResponse
+
+def do_fun_system_crawling():
+>>>>>>> 397c3afe786a09a799a06bd937f36f5e6960aeb5
 
 # S3 클라이언트 생성
 s3 = boto3.client(
@@ -23,6 +30,7 @@ s3 = boto3.client(
     aws_secret_access_key=configuration.aws_secret_access_key
 )
 
+<<<<<<< HEAD
 class Category(Enum):
     전체 = "ALL"
     구독 = "SUBSCRIPTION"
@@ -43,6 +51,18 @@ class Category(Enum):
     진로지원 = "CAREER_SUPPORT"
     창업지원 = "STARTUP_SUPPORT"
     취업지원 = "EMPLOYMENT_SUPPORT"
+=======
+    # 데이터베이스에 연결 설정
+    conn = psycopg2.connect(
+        host=configuration.db_host,
+        database=configuration.db_name,
+        user=configuration.db_user_name,
+        password=configuration.db_pw,
+        port=5432,
+    )
+
+    cursor = conn.cursor()
+>>>>>>> 397c3afe786a09a799a06bd937f36f5e6960aeb5
 
 
 class CrawlingFinishedException(Exception):
@@ -165,5 +185,18 @@ def fun_system_crawling(page_count):
         # 데이터베이스 연결 닫기
         conn.close()
 
+def fun_system_crawling():
+    try:
+        do_fun_system_crawling()
+    except:
+        return JSONResponse(content="Internal Server Error", status_code=500)
+    
+    return JSONResponse(content="OK", status_code=200)
+
+
 if __name__ == "__main__":
+<<<<<<< HEAD
     fun_system_crawling(10)
+=======
+    fun_system_crawling()
+>>>>>>> 397c3afe786a09a799a06bd937f36f5e6960aeb5
