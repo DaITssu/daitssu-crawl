@@ -5,7 +5,7 @@ import psycopg2
 import configuration
 <<<<<<< HEAD
 import boto3
-from enum import Enum
+from enum import Enum 
 
 # 데이터베이스에 연결 설정
 conn = psycopg2.connect(
