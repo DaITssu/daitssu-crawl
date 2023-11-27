@@ -11,8 +11,8 @@ import boto3
 
 from fastapi.responses import JSONResponse
 
-from control_db import update_notification
-from notification import Notification
+from common.control_db import update_notification
+from common.notification import Notification
 
 URL = "http://cse.ssu.ac.kr/03_sub/01_sub.htm"
 
