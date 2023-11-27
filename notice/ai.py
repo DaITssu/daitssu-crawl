@@ -10,8 +10,8 @@ import boto3
 import configuration
 from fastapi.responses import JSONResponse
 
-from control_db import update_notification
-from notification import Notification
+from common.control_db import update_notification
+from common.notification import Notification
 
 AI_BASE_URL = "http://aix.ssu.ac.kr/"
 
