@@ -4,5 +4,6 @@ class UserInfo(BaseModel):
     student_id: str
     password: str
 
-class SmartCampusToken(BaseModel):
+class SmartCampusReq(BaseModel):
     token: str
+    student_id: str
