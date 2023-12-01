@@ -75,7 +75,7 @@ class Calendar(Base):
     type = Column(CHAR(32))
     course = Column(CHAR(64))
     due_at = Column(DateTime,default=default_date)
-    name = Column(CHAR(64))
+    name = Column(CHAR(256))
     is_complete = Column(Boolean)
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
