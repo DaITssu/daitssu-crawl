@@ -11,12 +11,9 @@ import boto3
 
 from fastapi.responses import JSONResponse
 
-from control_db import update_notification
-from notification import Notification
-import logging
+from notice.common.control_db import update_notification
+from notice.common.notification import Notification
 
-logging.basicConfig()
-logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
 URL = "http://cse.ssu.ac.kr/03_sub/01_sub.htm"
 
 db_url = sqlalchemy.engine.URL.create(
