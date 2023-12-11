@@ -18,7 +18,7 @@ metadata_obj = MetaData()
 Base = declarative_base()
 
 db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
-    drivername="postgresql",
+    drivername="mysql+pymysql",
     username=configuration.db_user_name,
     password=configuration.db_pw,
     host=configuration.db_host,
@@ -61,10 +61,10 @@ class Content(Notification):  # Crawling 결과를 담는 객체
         self.updated_at = date(date_arr[0], date_arr[1], date_arr[2])
 
     def __init_contents(self, column):  # 본문 내용 크롤링
-        self.image_url = []
+        self.image_url = {"url": []}
         self.content = ""
         real_content = ""
-        self.file_url = []
+        self.file_url = {"url": []}
 
         target = column.find('a')
         post_url = target['href']
@@ -74,7 +74,7 @@ class Content(Notification):  # Crawling 결과를 담는 객체
         for tag in contents.findAll('p'):
             img = tag.find("img", class_=lambda css_class: css_class != "emoji")
             if img:
-                self.image_url.append(img['src'])
+                self.image_url["url"].append(img['src'])
             else:
                 real_content += BeautifulSoup(tag.text, "lxml").text
         file_urls = contents.find("ul")
@@ -82,7 +82,7 @@ class Content(Notification):  # Crawling 결과를 담는 객체
         if file_urls:
             links = file_urls.findAll("a")
             for item in links:
-                self.file_url.append(item['href'])
+                self.file_url["url"].append(item['href'])
 
         self.content = real_content
 
@@ -109,7 +109,7 @@ class Content(Notification):  # Crawling 결과를 담는 객체
 
     def __init_department(self):  # 등록 부서 크롤링
         with engine.connect() as connect:
-            department_table = Table("department", metadata_obj, schema="main", autoload_with=engine)
+            department_table = Table("department", metadata_obj, schema="daitssu", autoload_with=engine)
             query = department_table.select().where(department_table.c.name == "슈케치")
             results = connect.execute(query)
             for result in results:
@@ -153,7 +153,7 @@ def ssu_catch_crawling():
         for (idx, item) in enumerate(content_iterator):  # 핵심 크롤링 부분
             if idx % 2 == 0:
                 content_list.append(Content(item.find('div')))
-        notification_table = Table("notice", metadata_obj, schema="notice", autoload_with=engine)
+        notification_table = Table("notice", metadata_obj, schema="daitssu", autoload_with=engine)
 
         with session_maker() as session:
             for result in content_list:
