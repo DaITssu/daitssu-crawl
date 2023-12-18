@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import requests
 import sqlalchemy
 from sqlalchemy import create_engine, Column, Integer, CHAR, DateTime, ForeignKey, Boolean
@@ -9,7 +11,7 @@ import configuration
 
 Base = declarative_base()
 db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
-    drivername="postgresql",
+    drivername="mysql+pymysql",
     username=configuration.db_user_name,
     password=configuration.db_pw,
     host=configuration.db_host,
@@ -455,6 +457,4 @@ if __name__ == "__main__":
     token = "테스트 토큰 입력"
     user_id = "유저 아이디 입력"
     smart_campus_crawling(token, user_id)
-
-
 
