@@ -5,7 +5,7 @@ from sqlalchemy import Table, update
 from sqlalchemy.orm import Session
 
 import configuration
-from notification import Notification
+from notice.common.notification import Notification
 
 
 def update_notification(header: str, data: Notification, session: Session, s3: BaseClient, table: Table):
