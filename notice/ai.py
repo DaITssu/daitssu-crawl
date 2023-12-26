@@ -3,8 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, date
 from sqlalchemy import create_engine, Table, MetaData
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import Column, Integer, CHAR, ARRAY, DateTime, String
+from sqlalchemy.orm import sessionmaker
 import sqlalchemy
 import boto3
 import configuration
@@ -16,7 +15,7 @@ from common.notification import Notification
 AI_BASE_URL = "http://aix.ssu.ac.kr/"
 
 db_url = sqlalchemy.engine.URL.create(
-    drivername="postgresql",
+    drivername="mysql+pymysql",
     username=configuration.db_user_name,
     password=configuration.db_pw,
     host=configuration.db_host,
@@ -106,7 +105,7 @@ class AiNotification(Notification):
         # 학과
         with engine.connect() as connect:
             department_table = Table(
-                "department", metadata_obj, schema="main", autoload_with=engine
+                "department", metadata_obj, schema="daitssu", autoload_with=engine
             )
             query = department_table.select().where(department_table.c.name == "AI융합학부")
             results = connect.execute(query)
@@ -150,7 +149,7 @@ def ai_department_crawling():
 
         with session_maker() as session:
             for result in results:
-                update_notification = ("CSE", result, session, s3, notification_table)
+                update_notification = ("AI", result, session, s3, notification_table)
 
             session.commit()
 
