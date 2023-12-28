@@ -5,10 +5,15 @@ from Crypto.Cipher import PKCS1_v1_5
 from Crypto.PublicKey import RSA
 import base64
 
+# 이름 학부 학번 학기:학년
+
 def get_auth_token(value):
 
     sIdno = value.student_id
     ssu_pwd = value.password
+
+    # sIdno = "20212227"
+    # ssu_pwd = "k153694kk*"
 
     common_header = {
         "referer": "https://smartid.ssu.ac.kr/Symtra_sso/smln.asp?apiReturnUrl=https%3A%2F%2Flms.ssu.ac.kr%2Fxn-sso%2Fgw-cb.php",
@@ -29,6 +34,11 @@ def get_auth_token(value):
     res = session.post(sToken_url, headers = common_header, data = sToken_req_data)
     login_cookies = requests.utils.dict_from_cookiejar(session.cookies)
     sToken = login_cookies['sToken']
+
+    try:
+        student_infos = get_student_info(sToken)
+    except:
+        raise Exception('로그인 정보를 다시 확인해주세요.')  
 
     # 쿠키 정보들 받아오기
     pass_token_url = f"https://lms.ssu.ac.kr/xn-sso/gw-cb.php?sToken={sToken}&sIdno={sIdno}"
@@ -70,7 +80,9 @@ def get_auth_token(value):
     res = session.get(token_url, headers = auth_token_header)
 
     auth_token = res.headers['Set-Cookie'].split(";")[0][13:]
-    return auth_token
+    student_infos['token'] = auth_token
+
+    return student_infos
 
 
 def decryption(res):
@@ -95,3 +107,37 @@ def decryption(res):
 
     return decrypt_pwd
 
+
+def get_student_info(sToken):
+
+    sapTokenUrl = "https://saint.ssu.ac.kr/webSSO/sso.jsp?sToken=" + sToken
+    mainStudentUrl = "https://saint.ssu.ac.kr/webSSUMain/main_student.jsp"
+
+    header = {
+        "Cookie": "sToken=" + sToken
+    }
+
+    session = requests.Session()
+    session.get(sapTokenUrl, headers=header)
+    result = session.get(mainStudentUrl)
+
+    soup = bs(result.text, 'lxml')
+
+    name = soup.find('p', class_='main_title')
+    name = name.text.strip().replace("님 환영합니다.", "")
+
+    infos = soup.find_all('a', class_='font_col02')
+        
+    num = infos[0].text.strip()
+    department = infos[1].text.strip()
+    semester = infos[3].text.strip()
+
+    student_infos = {}
+
+    student_infos['name'] = name
+    student_infos['sIdno'] = num
+    student_infos['department'] = department
+    student_infos['semester'] = semester
+    
+    return student_infos
+    
