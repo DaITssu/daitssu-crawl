@@ -1,27 +1,21 @@
+import json
 from bs4 import BeautifulSoup
 import requests
 from datetime import datetime
-import psycopg2
+import mysql.connector
 import configuration
-<<<<<<< HEAD
 import boto3
-from enum import Enum 
+from enum import Enum
 
 # 데이터베이스에 연결 설정
-conn = psycopg2.connect(
+conn = mysql.connector.connect(
     host=configuration.db_host,
     database=configuration.db_name,
     user=configuration.db_user_name,
     password=configuration.db_pw,
-    port=5432,
+    port=3306,  # MySQL의 기본 포트는 3306입니다.
 )
 cursor = conn.cursor()
-=======
-
-from fastapi.responses import JSONResponse
-
-def do_fun_system_crawling():
->>>>>>> 397c3afe786a09a799a06bd937f36f5e6960aeb5
 
 # S3 클라이언트 생성
 s3 = boto3.client(
@@ -30,39 +24,22 @@ s3 = boto3.client(
     aws_secret_access_key=configuration.aws_secret_access_key
 )
 
-<<<<<<< HEAD
 class Category(Enum):
     전체 = "ALL"
     구독 = "SUBSCRIPTION"
     학습역량 = "LEARNING_SKILLS"
-    공모전 = "COMPETITION"
-    경진대회 = "COMPETITION"
-    자격증 = "CERTIFICATION"
-    특강 = "CERTIFICATION"
+    공모전_경진대회 = "COMPETITION"
+    자격증_특강 = "CERTIFICATION"
     학생활동 = "STUDENT_ACTIVITIES"
-    해외연수 = "STUDY_ABROAD"
-    교환학생 = "STUDY_ABROAD"
+    해외연수_교환학생 = "STUDY_ABROAD"
     인턴 = "INTERNSHIP"
     봉사 = "VOLUNTEERING"
     체험활동 = "EXPERIENTIAL_ACTIVITIES"
-    심리 = "COUNSELING"
-    상담 = "COUNSELING"
-    진단 = "COUNSELING"
-    진로지원 = "CAREER_SUPPORT"
+    심리_상담_진단 = "COUNSELING"
+    진로_진학_지원 = "CAREER_SUPPORT"
     창업지원 = "STARTUP_SUPPORT"
     취업지원 = "EMPLOYMENT_SUPPORT"
-=======
-    # 데이터베이스에 연결 설정
-    conn = psycopg2.connect(
-        host=configuration.db_host,
-        database=configuration.db_name,
-        user=configuration.db_user_name,
-        password=configuration.db_pw,
-        port=5432,
-    )
 
-    cursor = conn.cursor()
->>>>>>> 397c3afe786a09a799a06bd937f36f5e6960aeb5
 
 
 class CrawlingFinishedException(Exception):
@@ -82,7 +59,7 @@ def fun_system_crawling(page_count):
             tag_ul = soup.find("ul", {"class": "columns-4"})
 
             for data in tag_ul.find_all("li"):
-                #마감된 프로그램인지 확인하기 closed 혹은 schesuled이면 넘어감.
+                #마감된 프로그램인지 확인하기 closed 혹은 schesuled이면 크롤링 중단.
                 label = data.select_one("label").get_text()
 
                 if "마감" in label:
@@ -137,7 +114,7 @@ def fun_system_crawling(page_count):
                 soup_content = BeautifulSoup(html_content_text, "html.parser")
 
                 wysiwyg_content = soup_content.find("div", {"data-role": "wysiwyg-content"})
-                content = wysiwyg_content.text
+                content = wysiwyg_content
 
                 for tag in wysiwyg_content(["p", "table"]):
                     if tag.name == "p":
@@ -155,10 +132,10 @@ def fun_system_crawling(page_count):
                 else:
                     category_text = category_element.get_text(strip=True)
 
+                # "/"와 "("와 ")" 를 "_"로 대체
+                category_text = category_text.replace("(", "_").replace(")", "_").replace("/", "_")
                 category = Category[category_text].value
 
-
-                
                 content_file = "notice_fs/FUN" + datetime.now().strftime("%Y%m%d%H%M%S") + ".txt"
                 s3_key = content_file
 
@@ -172,9 +149,10 @@ def fun_system_crawling(page_count):
                 # DB INSERT
                 cursor.execute(
                     f"""
-                    INSERT INTO notice.notice_fs (title, content, image_url, url, created_at, updated_at, category, views)
-                    VALUES ('{title}', '{"https://daitssu-bucket.s3.amazonaws.com/daitssu-dev/"+content_file}', ARRAY[{image}]::text[],'{content_url}', '{created_at}', '{updated_at}','{category}','{views}')
-                    """,
+                    INSERT INTO notice_fs (title, content, image_url, url, created_at, updated_at, category, views)
+                    VALUES ('{title}', '{"https://daitssu-bucket.s3.amazonaws.com/daitssu-dev/" + content_file}',
+                            {json.dumps(image)}, '{content_url}', '{created_at}', '{updated_at}', '{category}', '{views}')
+                    """
                 )
 
                 conn.commit()
@@ -185,18 +163,5 @@ def fun_system_crawling(page_count):
         # 데이터베이스 연결 닫기
         conn.close()
 
-def fun_system_crawling():
-    try:
-        do_fun_system_crawling()
-    except:
-        return JSONResponse(content="Internal Server Error", status_code=500)
-    
-    return JSONResponse(content="OK", status_code=200)
-
-
 if __name__ == "__main__":
-<<<<<<< HEAD
     fun_system_crawling(10)
-=======
-    fun_system_crawling()
->>>>>>> 397c3afe786a09a799a06bd937f36f5e6960aeb5
