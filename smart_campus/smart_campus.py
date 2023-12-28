@@ -8,8 +8,8 @@ from fastapi.responses import JSONResponse
 import datetime
 import configuration
 
-
 Base = declarative_base()
+
 db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
     drivername="mysql+pymysql",
     username=configuration.db_user_name,
@@ -17,8 +17,7 @@ db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
     host=configuration.db_host,
     database=configuration.db_name
 )
-
-engine = create_engine(db_url)
+engine = create_engine(db_url)  # db 연결
 Session = sessionmaker(bind=engine)
 default_date = datetime.datetime(9999, 12, 31, 23, 59, 59)
 default_start_date = datetime.datetime(2023,1,1,00,00,00)
@@ -457,4 +456,5 @@ if __name__ == "__main__":
     token = "테스트 토큰 입력"
     user_id = "유저 아이디 입력"
     smart_campus_crawling(token, user_id)
+
 
