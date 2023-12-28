@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 import uvicorn
 from model.req_models import *
 
@@ -23,7 +23,11 @@ async def auth_controller(user_info: UserInfo):
     현재 정상 이용 가능합니다.
     """
     from smart_campus.auth_token import get_auth_token
-    result = get_auth_token(user_info)
+
+    try:
+        result = get_auth_token(user_info)
+    except:
+        raise HTTPException(status_code=400, detail="로그인 정보를 다시 확인해주세요.")
     return result
     
 @app.get("/fun-system")
