@@ -1,7 +1,7 @@
 import json
 from model.req_models import *
 
-async def lambda_handler(event, context):
+def lambda_handler(event, context):
     body = json.loads(event['body'])
     function_name = body['function']
 
@@ -26,7 +26,7 @@ async def lambda_handler(event, context):
         'body': result
     }
 
-async def auth_controller(user_info: UserInfo):
+def auth_controller(user_info: UserInfo):
     """
     현재 정상 이용 가능합니다.
     """
@@ -34,7 +34,7 @@ async def auth_controller(user_info: UserInfo):
     result = get_auth_token(user_info)
     return result
 
-async def smart_campus_controller(smart_campus_req: SmartCampusReq):
+def smart_campus_controller(smart_campus_req: SmartCampusReq):
     """
     현재 정상 이용 가능합니다.
     """
@@ -42,7 +42,7 @@ async def smart_campus_controller(smart_campus_req: SmartCampusReq):
     result = smart_campus_crawling(smart_campus_req.token, smart_campus_req.student_id)
     return result
 
-async def fun_system_controller():
+def fun_system_controller():
     """
     현재 정상 이용 가능합니다.
     """
@@ -50,7 +50,7 @@ async def fun_system_controller():
     result = fun_system_crawling()
     return result
 
-async def ssu_catch_controller():
+def ssu_catch_controller():
     """
     현재 정상 이용 가능합니다.
     """
@@ -58,7 +58,7 @@ async def ssu_catch_controller():
     result = ssu_catch_crawling()
     return result
 
-async def computer_department_controller():
+def computer_department_controller():
     """
     현재 정상 이용 가능합니다.
     """
