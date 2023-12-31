@@ -43,11 +43,7 @@ async def smart_campus_controller(smart_campus_req: SmartCampusReq):
     return result
 
 async def fun_system_controller():
-    """
-    현재 정상 이용 가능합니다.
-    """
-    from fun_system.fun_system import fun_system_crawling
-    result = fun_system_crawling()
+    result = "no"
     return result
 
 async def ssu_catch_controller():
