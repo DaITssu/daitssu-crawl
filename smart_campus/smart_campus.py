@@ -4,7 +4,6 @@ import requests
 import sqlalchemy
 from sqlalchemy import create_engine, Column, Integer, CHAR, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import sessionmaker, declarative_base
-from fastapi.responses import JSONResponse
 import datetime
 import configuration
 
@@ -25,7 +24,7 @@ current_time = datetime.datetime.now()
 
 class Course(Base):
     __tablename__ = 'course'
-    __table_args__ = {"schema": "course"}
+    __table_args__ = {"schema": "daitssu"}
     course_code = Column(CHAR(32), nullable=False)
     id = Column(Integer, primary_key=True)
     name = Column(CHAR(64))
@@ -36,10 +35,10 @@ class Course(Base):
 
 class Video(Base):
     __tablename__ = 'video'
-    __table_args__ = {"schema": "course"}
+    __table_args__ = {"schema": "daitssu"}
     id = Column(Integer, primary_key=True)
     name = Column(CHAR(256))
-    course_id = Column(Integer, ForeignKey('course.course.id'))
+    course_id = Column(Integer, ForeignKey('daitssu.course.id'))
     due_at = Column(DateTime, default=default_date)
     start_at = Column(DateTime, default=default_date)
     created_at = Column(DateTime)
@@ -48,10 +47,10 @@ class Video(Base):
 
 class Assignment(Base):
     __tablename__ = 'assignment'
-    __table_args__ = {"schema": "course"}
+    __table_args__ = {"schema": "daitssu"}
     id = Column(Integer, primary_key=True)
     name = Column(CHAR(256))
-    course_id = Column(Integer, ForeignKey('course.course.id'))
+    course_id = Column(Integer, ForeignKey('daitssu.course.id'))
     due_at = Column(DateTime, default=default_date)
     start_at = Column(DateTime, default=default_date)
     created_at = Column(DateTime)
@@ -60,10 +59,10 @@ class Assignment(Base):
 
 class UserCourseRelation(Base):
     __tablename__ = 'user_course_relation'
-    __table_args__ = {"schema": "course"}
+    __table_args__ = {"schema": "daitssu"}
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer)
-    course_id = Column(Integer, ForeignKey('course.course.id'))
+    course_id = Column(Integer, ForeignKey('daitssu.course.id'))
     register_status = Column(CHAR(20))
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
@@ -71,17 +70,16 @@ class UserCourseRelation(Base):
 
 class Calendar(Base):
     __tablename__ = 'calendar'
-    __table_args__ = {"schema": "course"}
+    __table_args__ = {"schema": "daitssu"}
     id = Column(Integer, primary_key=True)
     type = Column(CHAR(32))
-    course = Column(CHAR(64))
+    course_id = Column(Integer, ForeignKey('daitssu.course.id'))
     due_at = Column(DateTime,default=default_date)
     name = Column(CHAR(256))
-    is_complete = Column(Boolean)
+    is_completed = Column(Boolean)
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
     user_id = Column(Integer)
-
 
 
 class SmartCampus:
@@ -137,6 +135,7 @@ class SmartCampus:
 
         summary_url = f"https://canvas.ssu.ac.kr/learningx/api/v1/courses/{subject}/attendance_items/summary?only_use_attendance=true"
         response_summary = requests.get(summary_url, headers=headers)
+        summary_data = ""
         if response_summary.status_code == 200:
             summary_data = response_summary.json().get("attendance_summaries", {})
 
@@ -159,9 +158,9 @@ class SmartCampus:
                                     break
                         course_name = self.session.query(Course).filter_by(course_code=str(subject_num)).first()
                         new_calendar_item = Calendar(type="OFFLINE_LECTURE",
-                                                     course=course_name.name,
+                                                     course_id=course_name.id,
                                                      due_at=schedule_time,
-                                                     is_complete=status,
+                                                     is_completed=status,
                                                      name=item.get("title"),
                                                      created_at=current_time,
                                                      updated_at=current_time,
@@ -280,6 +279,7 @@ class SmartCampus:
             data_dict = response.json()  # JSON 응답을 파이썬의 딕셔너리로 변환
 
             for module in data_dict.get("to_dos", []):
+    
                 course_id = module.get("course_id")
 
                 assignment = defaultdict(list)
@@ -290,7 +290,7 @@ class SmartCampus:
                 course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
 
                 # 필요한 데이터 가져오기
-                query = session.query(Calendar).filter_by(course=course.name)
+                query = session.query(Calendar).filter_by(course_id=course.id)
                 calendars = query.all()
 
                 # 데이터를 HashMap에 저장
@@ -322,9 +322,9 @@ class SmartCampus:
                                     course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
                                     new_calendar_item = Calendar(
                                         type="ASSIGNMENT",
-                                        course=course.name,
+                                        course_id=course.id,
                                         due_at=due_at,
-                                        is_complete=False,
+                                        is_completed=False,
                                         name=title,
                                         created_at=current_time,
                                         updated_at=current_time,
@@ -351,9 +351,9 @@ class SmartCampus:
                                     course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
                                     new_calendar_item = Calendar(
                                         type="VIDEO",
-                                        course=course.name,
+                                        course_id=course.id,
                                         due_at=due_at,
-                                        is_complete=False,
+                                        is_completed=False,
                                         name=title,
                                         created_at=current_time,
                                         updated_at=current_time,
@@ -380,9 +380,9 @@ class SmartCampus:
                                     course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
                                     new_calendar_item = Calendar(
                                         type="QUIZ",
-                                        course=course.name,
+                                        course_id=course.id,
                                         due_at=due_at,
-                                        is_complete=False,
+                                        is_completed=False,
                                         name=title,
                                         created_at=current_time,
                                         updated_at=current_time,
@@ -402,22 +402,22 @@ class SmartCampus:
                         # 남은 데이터 처리
                         for assign in assignment.keys():
                             change_data = self.session.query(Calendar).filter_by(name=assign).first()
-                            if change_data.is_complete == False:
-                                change_data.is_complete = True
+                            if change_data.is_completed == False:
+                                change_data.is_completed = True
                             course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
                             course.updated_at = current_time
 
                         for video in video.keys():
                             change_data = self.session.query(Calendar).filter_by(name=video).first()
-                            if change_data.is_complete == False:
-                                change_data.is_complete = True
+                            if change_data.is_completed == False:
+                                change_data.is_completed = True
                             course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
                             course.updated_at = current_time
 
                         for quiz in quiz.keys():
                             change_data = self.session.query(Calendar).filter_by(name=quiz).first()
-                            if change_data.is_complete == False:
-                                change_data.is_complete = True
+                            if change_data.is_completed == False:
+                                change_data.is_completed = True
                             course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
                             course.updated_at = current_time
 
@@ -449,6 +449,8 @@ def smart_campus_crawling(token, user_id):
 
         # 모든 작업이 정상적으로 완료되면 commit 수행
         session.commit()
+
+        return "Success"
 
 
 
