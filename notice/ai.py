@@ -2,12 +2,12 @@ import bs4.element
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, date
-from sqlalchemy import create_engine, Table, MetaData
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, Table, MetaData, Column, Integer, CHAR, DateTime
+from sqlalchemy.orm import sessionmaker, declarative_base
 import sqlalchemy
 import boto3
+
 import configuration
-from fastapi.responses import JSONResponse
 
 from common.control_db import update_notification
 from common.notification import Notification
@@ -23,8 +23,9 @@ db_url = sqlalchemy.engine.URL.create(
 )
 
 engine = create_engine(db_url)
-session_maker = sessionmaker(autoflush=False, autocommit=False, bind=engine)
+session_maker = sessionmaker(bind=engine)
 metadata_obj = MetaData()
+Base = declarative_base()
 
 s3 = boto3.client(
     "s3",
@@ -33,8 +34,18 @@ s3 = boto3.client(
 )
 
 
+class Department(Base):
+    __tablename__ = 'department'
+    __table_args__ = {"schema": "daitssu"}
+    id = Column(Integer, primary_key=True)
+    name = Column(CHAR(32))
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
+
+
 class AiNotification(Notification):
-    def __init__(self, row: bs4.element.Tag):
+    def __init__(self, row: bs4.element.Tag, session):
+        self.session = session
         childrens = row.find_all("td")
 
         if childrens:
@@ -103,15 +114,9 @@ class AiNotification(Notification):
         self.views = childrens[3].text.strip()
 
         # 학과
-        with engine.connect() as connect:
-            department_table = Table(
-                "department", metadata_obj, schema="daitssu", autoload_with=engine
-            )
-            query = department_table.select().where(department_table.c.name == "AI융합학부")
-            results = connect.execute(query)
-
-            for result in results:
-                self.department_id = result.id
+        existing_course = self.session.query(Department).filter_by(name="AI융합학부").first()
+        if existing_course is not None:
+            self.department_id = existing_course.id
 
     def __str__(self):
         return (
@@ -130,33 +135,29 @@ class AiNotification(Notification):
 
 
 def ai_department_crawling():
-    try:
-        page = 1
-        url = AI_BASE_URL + "notice.html?searchKey=ai"
-        # 페이지 옵션: &page=
-        req = requests.get(url)
-        soup = BeautifulSoup(req.text, "lxml")
-        content = soup.find("table", class_="table")
-        rows = content.find_all("tr")
-        results = []
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    page = 1
+    url = AI_BASE_URL + "notice.html?searchKey=ai"
+    # 페이지 옵션: &page=
+    req = requests.get(url)
+    soup = BeautifulSoup(req.text, "lxml")
+    content = soup.find("table", class_="table")
+    rows = content.find_all("tr")
+    results = []
 
-        for row in rows[1:]:
-            results.append(AiNotification(row))
+    for row in rows[1:]:
+        results.append(AiNotification(row, session))
 
-        notification_table = Table(
-            "notice", "metadata_obj", schema="notice", autoload_with=engine
-        )
+    notification_table = Table(
+        "notice", metadata_obj, schema="daitssu", autoload_with=engine
+    )
 
-        with session_maker() as session:
-            for result in results:
-                update_notification = ("AI", result, session, s3, notification_table)
+    with session_maker() as session:
+        for result in results:
+            update_notification("AI", result, session, s3, notification_table)
 
-            session.commit()
-
-    except:
-        return JSONResponse(content="Internal Server Error", status_code=500)
-
-    return JSONResponse(content="OK", status_code=200)
+        session.commit()
 
 
 if __name__ == "__main__":
