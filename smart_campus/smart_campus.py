@@ -345,7 +345,7 @@ def smart_campus_crawling(token, user_id):
 
 
 if __name__ == "__main__":
-    token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2xvZ2luIjoiMjAyMjMxMjUiLCJyb2xlIjoxLCJjcmVhdGVkX2F0IjoxNjg0MDYyMTQ0LCJpYXQiOjE2ODQwNjIxNDR9.l2qNqL8tO5QlxuB8WXgChRlc-GKHnLgDKZdp59M6oG8"
-    user_id = "1"
+    token = "토큰 입력"
+    user_id = "유저 아이디 입력"
     smart_campus_crawling(token, user_id)
 
