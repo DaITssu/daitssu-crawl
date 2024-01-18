@@ -42,7 +42,7 @@ async def fun_system_controller():
     현재 정상 이용 가능합니다.
     """
     from fun_system.fun_system import fun_system_crawling
-    result = fun_system_crawling()
+    result = fun_system_crawling(10)
     return result
 
 @app.get("/notice/ssu-catch")
