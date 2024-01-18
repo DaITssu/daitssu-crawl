@@ -7,3 +7,4 @@ pycryptodome==3.19.0
 fastapi==0.88.0
 lxml==4.9.3
 uvicorn
+APScheduler
