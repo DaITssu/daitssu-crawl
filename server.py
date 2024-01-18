@@ -1,12 +1,15 @@
 from fastapi import FastAPI, HTTPException
 import uvicorn
 from model.req_models import *
+import scheduling
 
 app = FastAPI (
     title="Daitssu Crawl Server",
     description="다잇슈 크롤링 서버 api 문서입니다.",
     version="1.0.0"
     )
+
+scheduling.start_scheduling()
 
 @app.post("/smart-campus/crawling")
 async def smart_campus_controller(smart_campus_req: SmartCampusReq):
@@ -60,5 +63,7 @@ async def computer_department_controller():
     result = computer_department_crawling()
     return result
 
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
+    
