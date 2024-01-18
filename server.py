@@ -53,5 +53,14 @@ async def computer_department_controller():
     result = computer_department_crawling()
     return result
 
+@app.get("/notice/ai")
+async def computer_department_controller():
+    """
+    현재 정상 이용 가능합니다.
+    """
+    from notice.ai import ai_department_crawling
+    result = ai_department_crawling()
+    return result
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
