@@ -11,13 +11,13 @@ import boto3
 
 from fastapi.responses import JSONResponse
 
-from control_db import update_notification
-from notification import Notification
+from notice.common.control_db import update_notification
+from notice.common.notification import Notification
 
 URL = "http://cse.ssu.ac.kr/03_sub/01_sub.htm"
 
 db_url = sqlalchemy.engine.URL.create(
-    drivername="postgresql",
+    drivername="mysql+pymysql",
     username=configuration.db_user_name,
     password=configuration.db_pw,
     host=configuration.db_host,
@@ -59,9 +59,9 @@ class ComputerNotification(Notification):
             for file in files:
                 link = ("http://cse.ssu.ac.kr" + file['href'])
                 file_link.append(link)
-        self.file_url = file_link
+        self.file_url = {"url": file_link}
         self.title = children[1].text.strip()
-        self.image_url = []
+        self.image_url = {"url": []}
         self.category = "UNDERGRADUATE"
 
         created_date = list(map(int, children[3].text.split(".")))
@@ -69,7 +69,7 @@ class ComputerNotification(Notification):
         self.updated_at = date(created_date[0], created_date[1], created_date[2])
 
         with engine.connect() as connect:
-            department_table = Table("department", metadata_obj, schema="main", autoload_with=engine)
+            department_table = Table("department", metadata_obj, schema="daitssu", autoload_with=engine)
             query = department_table.select().where(department_table.c.name == "컴퓨터학부")
             results = connect.execute(query)
             for result in results:
@@ -87,7 +87,7 @@ class ComputerNotification(Notification):
 
 def computer_department_crawling():
     try:
-        page = 1  # 1 ~
+        page = 2  # 1 ~
         base_url = URL + "?page={0}".format(page)
         req = requests.get(base_url)
         soup = BeautifulSoup(req.text, 'lxml')
@@ -97,13 +97,13 @@ def computer_department_crawling():
         for row in rows:
             results.append(ComputerNotification(row))
 
-        notification_table = Table("notice", metadata_obj, schema="notice", autoload_with=engine)
+        notification_table = Table("notice", metadata_obj, schema="daitssu", autoload_with=engine)
 
         with session_maker() as session:
             for result in results:
                 update_notification("CSE", result, session, s3, notification_table)
-
             session.commit()
+
     except botocore.exceptions.NoCredentialsError as e:
         return JSONResponse(content=e.args, status_code=403)
     except Exception as e:
