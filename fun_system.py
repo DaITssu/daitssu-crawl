@@ -73,7 +73,13 @@ def fun_system_crawling(page_count):
             title_hashmap.add(title)
 
 
+            # DB에서 이미 저장된 데이터의 title 조회
+            cursor.execute(f"SELECT title FROM daitssu.notice_fs WHERE title = '{title}'")
+            existing_title = cursor.fetchone()
 
+            # 이미 저장된 데이터의 title과 크롤링 중인 데이터의 title이 동일하면 넘어감
+            if existing_title:
+                continue
 
 
             #image_url 크롤링
