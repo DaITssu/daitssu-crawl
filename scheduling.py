@@ -3,13 +3,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 # import notice.ai
 import notice.computer
 import notice.ssu_catch
-# import fun_system.fun_system
+import fun_system.fun_system
 
 def test():
     # notice.ai.ai_department_crawling()
     notice.computer.computer_department_crawling()
     notice.ssu_catch.ssu_catch_crawling()
-    # fun_system.fun_system.fun_system_crawling()
+    fun_system.fun_system.fun_system_crawling(10)
 
 scheduler = BackgroundScheduler(daemon=True, timezone='Asia/Seoul')
 scheduler.add_job(test, 'cron', hour='0', minute='10')
