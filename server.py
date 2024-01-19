@@ -14,7 +14,7 @@ scheduling.start_scheduling()
 @app.post("/smart-campus/crawling")
 async def smart_campus_controller(smart_campus_req: SmartCampusReq):
     """
-    현재 정상 이용 가능합니다.
+    student_id는 학번을 의미합니다.
     """
     from smart_campus.smart_campus import smart_campus_crawling
     try:
@@ -26,7 +26,7 @@ async def smart_campus_controller(smart_campus_req: SmartCampusReq):
 @app.post("/smart-campus/auth")
 async def auth_controller(user_info: UserInfo):
     """
-    현재 정상 이용 가능합니다.
+    student_id는 학번을 의미합니다.
     """
     from smart_campus.auth_token import get_auth_token
 
