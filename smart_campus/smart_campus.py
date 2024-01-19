@@ -16,11 +16,29 @@ db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
     host=configuration.db_host,
     database=configuration.db_name
 )
+
 engine = create_engine(db_url)  # db 연결
 Session = sessionmaker(bind=engine)
 default_date = datetime.datetime(9999, 12, 31, 23, 59, 59)
 default_start_date = datetime.datetime(2023,1,1,00,00,00)
 current_time = datetime.datetime.now()
+
+class Users(Base):
+    __tablename__ = 'users'
+    __table_args__ = {"schema": "daitssu"}
+    id = Column(Integer, primary_key=True)
+    student_id = Column(CHAR(16))
+    name = Column(CHAR(32))
+    nickname = Column(CHAR(32))
+    department_id = Column(Integer, ForeignKey('daitssu.department.id'))
+    image_url = Column(CHAR(2048))
+    term = Column(Integer)
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
+    ssu_token = Column(CHAR(256))
+    refresh_token = Column(CHAR(256))
+    is_deleted = Column(Boolean)
+
 
 class Course(Base):
     __tablename__ = 'course'
@@ -425,38 +443,40 @@ class SmartCampus:
                         print("이 모듈에서는 Course ID를 찾을 수 없습니다.")
 
 
-def smart_campus_crawling(token, user_id):
-        Session = sessionmaker(bind=engine)
-        session = Session()
-        smart_campus = SmartCampus(session)
-        # Get subjects and save them to the database
-        smart_campus.course(token, user_id)
-        courses = session.query(UserCourseRelation).all()
+def smart_campus_crawling(token, student_id):
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    smart_campus = SmartCampus(session)
+    
+    user_id = session.query(Users).filter_by(student_id=student_id).first().id
 
-        for course in courses:
+    smart_campus.course(token, user_id)
+    courses = session.query(UserCourseRelation).all()
 
-            real_id = session.query(Course).filter_by(id=course.course_id).first()
-            subject_num = int(real_id.course_code)
-            smart_campus.get_date(token, subject_num)
-        for course in courses:
+    for course in courses:
+        real_id = session.query(Course).filter_by(id=course.course_id).first()
+        subject_num = int(real_id.course_code)
+        smart_campus.get_date(token, subject_num)
 
-            real_id = session.query(Course).filter_by(id=course.course_id).first()
-            subject_num = int(real_id.course_code)
+    for course in courses:
+        real_id = session.query(Course).filter_by(id=course.course_id).first()
+        subject_num = int(real_id.course_code)
 
-            smart_campus.get_calander_data(token, subject_num, user_id)
-        smart_campus.save_user_course_data(token, user_id)
-        smart_campus.save_to_do_to_calendar(token, user_id)
+        smart_campus.get_calander_data(token, subject_num, user_id)
+    smart_campus.save_user_course_data(token, user_id)
+    smart_campus.save_to_do_to_calendar(token, user_id)
 
-        # 모든 작업이 정상적으로 완료되면 commit 수행
-        session.commit()
+    # 모든 작업이 정상적으로 완료되면 commit 수행
+    session.commit()
 
-        return "Success"
-
+    return "Success"
 
 
 if __name__ == "__main__":
-    token = "테스트 토큰 입력"
-    user_id = "유저 아이디 입력"
-    smart_campus_crawling(token, user_id)
+    # token = "테스트 토큰 입력"
+    # student_id = "학번 입력"
 
+    token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2xvZ2luIjoiMjAyMTIyMjciLCJyb2xlIjoxLCJjcmVhdGVkX2F0IjoxNzA1NjQ3NjQ5LCJpYXQiOjE3MDU2NDc2NDl9.oSeSVSkN8pgbzkPBTk_XroOFNlBFrpE-pZYE20XQBNQ"
+    student_id = "20212227"
 
+    smart_campus_crawling(token, student_id)
