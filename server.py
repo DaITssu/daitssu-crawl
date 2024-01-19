@@ -14,19 +14,20 @@ scheduling.start_scheduling()
 @app.post("/smart-campus/crawling")
 async def smart_campus_controller(smart_campus_req: SmartCampusReq):
     """
-    현재 정상 이용 가능합니다.
+    student_id는 학번을 의미합니다.
     """
     from smart_campus.smart_campus import smart_campus_crawling
-    try:
-        result = smart_campus_crawling(smart_campus_req.token, smart_campus_req.student_id)
-    except:
-        raise HTTPException(status_code=400, detail="에러가 발생 했습니다.")
+    result = smart_campus_crawling(smart_campus_req.token, smart_campus_req.student_id)
+    # try:
+    #     result = smart_campus_crawling(smart_campus_req.token, smart_campus_req.student_id)
+    # except:
+    #     raise HTTPException(status_code=400, detail="에러가 발생 했습니다.")
     return result
 
 @app.post("/smart-campus/auth")
 async def auth_controller(user_info: UserInfo):
     """
-    현재 정상 이용 가능합니다.
+    student_id는 학번을 의미합니다.
     """
     from smart_campus.auth_token import get_auth_token
 
