@@ -66,25 +66,6 @@ class AiNotification(Notification):
         for content in contents:
             self.content += content.text
 
-        if len(self.content.encode("utf-8")) > 2048:
-            file_name = "AI" + str(datetime.now().strftime("%Y%m%d%H%M%S")) + ".txt"
-
-            with open(file_name, "w", encoding="utf-8") as file:
-                file.write(self.content)
-
-            # S3 삽입 코드
-            s3 = boto3.resource("s3")
-            bucket_name = configuration.bucket_name
-            bucket = s3.Bucket(bucket_name)
-
-            local_file = file_name
-            obj_file = file_name
-
-            bucket.upload_file(local_file, obj_file)
-
-            # S3 저장 파일 경로 삽입
-            self.content = f"https://{configuration.bucket_name}.s3.amazonaws.com/{configuration.file_path}{file_name}"
-
         # 카테고리
         self.category = "UNDERGRADUATE"
 
