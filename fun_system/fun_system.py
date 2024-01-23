@@ -1,132 +1,156 @@
+import json
 from bs4 import BeautifulSoup
 import requests
 from datetime import datetime
-import psycopg2
+import mysql.connector
 import configuration
+import boto3
+from enum import Enum
 
-from fastapi.responses import JSONResponse
+# 데이터베이스에 연결 설정
+conn = mysql.connector.connect(
+    user=configuration.db_user_name,
+    password=configuration.db_pw,
+    host=configuration.db_host,
+    database=configuration.db_name
+)
 
-def do_fun_system_crawling():
+cursor = conn.cursor()
 
-    # 웹 페이지에서 프로그램 정보 가져오기
-    Fun = "https://fun.ssu.ac.kr/ko/program"
-    html = requests.get(Fun)
-    html_text = html.text
-    soup = BeautifulSoup(html_text, "html.parser")
-    tag_ul = soup.find("ul", {"class": "columns-4"})
+# S3 클라이언트 생성
+s3 = boto3.client(
+    's3',
+    aws_access_key_id=configuration.aws_access_key_id,
+    aws_secret_access_key=configuration.aws_secret_access_key
+)
 
-    # 데이터베이스에 연결 설정
-    conn = psycopg2.connect(
-        host=configuration.db_host,
-        database=configuration.db_name,
-        user=configuration.db_user_name,
-        password=configuration.db_pw,
-        port=5432,
-    )
+class Category(Enum):
+    전체 = "ALL"
+    구독 = "SUBSCRIPTION"
+    학습역량 = "LEARNING_SKILLS"
+    공모전_경진대회 = "COMPETITION"
+    자격증_특강 = "CERTIFICATION"
+    학생활동 = "STUDENT_ACTIVITIES"
+    해외연수_교환학생 = "STUDY_ABROAD"
+    인턴 = "INTERNSHIP"
+    봉사 = "VOLUNTEERING"
+    체험활동 = "EXPERIENTIAL_ACTIVITIES"
+    심리_상담_진단 = "COUNSELING"
+    진로_진학_지원 = "CAREER_SUPPORT"
+    창업지원 = "STARTUP_SUPPORT"
+    취업지원 = "EMPLOYMENT_SUPPORT"
 
-    cursor = conn.cursor()
+
+# 해시맵 초기화
+title_hashmap = set()
+
+def fun_system_crawling(page_count):
+    for page_number in range(1, page_count + 1):
+        # 웹 페이지에서 프로그램 정보 가져오기
+        Fun = f"https://fun.ssu.ac.kr/ko/program/all/list/all/{page_number}"
+        html = requests.get(Fun)
+        html_text = html.text
+        soup = BeautifulSoup(html_text, "html.parser")
+        tag_ul = soup.find("ul", {"class": "columns-4"})
+
+        for data in tag_ul.find_all("li"):
+            #마감된 프로그램인지 확인하기 closed 혹은 schesuled이면 크롤링 중단.
+            label = data.select_one("label").get_text()
+
+            if "마감" in label:
+                continue
+            elif "예정" in label:
+                continue
+
+            #title 크롤링
+            title = data.select_one("b.title").get_text()
+
+            # 중복된 title 체크
+            if title in title_hashmap:
+                continue  # 이미 크롤링한 title이면 무시
+
+            # title을 해시맵에 추가
+            title_hashmap.add(title)
 
 
-    # 각 프로그램 정보를 크롤링하여 데이터베이스에 삽입
-    for data in tag_ul.find_all("li"):
-        data_title = data.select_one("b.title").get_text()
-        data_link = data.find("a")
-        img_style = data.find("div", {"class": "cover"})["style"]
-        strat = img_style.index("(") + 1
-        end = img_style.index(")")
-        image = img_style[strat:end]
-        created_time_element = data_link.find("span", {"class": "created-time"})
+            # DB에서 이미 저장된 데이터의 title 조회
+            cursor.execute(f"SELECT title FROM daitssu.notice_fs WHERE title = '{title}'")
+            existing_title = cursor.fetchone()
 
-        if created_time_element:
-            created_time = created_time_element.get_text(strip=True)
-        else:
-            created_time = None
+            # 이미 저장된 데이터의 title과 크롤링 중인 데이터의 title이 동일하면 넘어감
+            if existing_title:
+                continue
 
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # 프로그램 내용 가져오기 (이전 내용 유지)
-        content_url = "https://fun.ssu.ac.kr" + data_link.get("href")
-        html_content = requests.get(content_url)
-        html_content_text = html_content.text
-        soup_content = BeautifulSoup(html_content_text, "html.parser")
-        content = ""
+            #image_url 크롤링
+            data_link = data.find("a")
+            image = {"url": []}
 
-        for tag in soup_content.find_all(["p", "table"]):
-            if tag.name == "p":
-                # 이미지, 링크, 동영상인 경우
-                if tag.find("img"):
-                    img_src = tag.find("img")["src"]
-                    content += f"Image: {img_src}\n"
-                elif tag.find("a"):
-                    link_tag = tag.find("a")
-                    link_href = link_tag["href"]
-                    link_text = link_tag.get_text(strip=True)
-                    content += f"Link: {link_text} - {link_href}\n"
-                elif tag.find("iframe"):
-                    link_tag = tag.find("iframe")
-                    link_href = link_tag["src"]
-                    link_text = link_tag.get_text(strip=True)
-                    content += f"Video Link: {link_text} - {link_href}\n"
-                else:
-                    text_content = tag.get_text(strip=True)
-                    content += f"{text_content}\n"
+            # 생성시각 및 업데이트 시각 크롤링.
+            created_time_element = data_link.find("span", {"class": "created-time"})
+            if created_time_element:
+                created_at = created_time_element.get_text(strip=True)
+            else:
+                created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            elif tag.name == "table":
-                content += "Table Contents:\n"
-                for row in tag.find_all("tr"):
-                    row_contents = [
-                        cell.get_text(strip=True) for cell in row.find_all("td")
-                    ]
-                    content += "\t/ ".join(row_contents) + "\n"
+            updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # 데이터 존재 여부 확인 및 업데이트 시각 설정
-        cursor.execute(
-            "SELECT * FROM programs WHERE url=%s",
-            ("https://fun.ssu.ac.kr" + data_link.get("href"),),
-        )
-        existing_data = cursor.fetchone()
+            # views 크롤링.
+            views_label = data.find("span", {"class": "hit"})
+            views_text = views_label.get_text(strip=True)
+            views = int(''.join(filter(str.isdigit, views_text)))
 
-        if existing_data:
-            updated_time = current_time
-            cursor.execute(
-                """
-                UPDATE programs
-                SET updated_time=%s, content=%s
-                WHERE url=%s
-            """,
-                (updated_time, content, "https://fun.ssu.ac.kr" + data_link.get("href")),
+            # content 크롤링
+            content_url = "https://fun.ssu.ac.kr" + data_link.get("href")
+            html_content = requests.get(content_url)
+            html_content_text = html_content.text
+            soup_content = BeautifulSoup(html_content_text, "html.parser")
+
+            wysiwyg_content = soup_content.find("div", {"data-role": "wysiwyg-content"})
+            content = wysiwyg_content
+
+            for tag in wysiwyg_content(["p", "table"]):
+                if tag.name == "p":
+                    # 이미지, 링크, 동영상인 경우
+                    if tag.find("img"):
+                        img_src = tag.find("img")["src"]
+                        image["url"].append(img_src)
+
+            # category 크롤링.
+            target = soup_content.find("div", {"class": "info"})
+            category_element = target.find("div", {"class": "category"})
+            i_tag = category_element.find('i', class_='fa fa-angle-right')
+            if i_tag:
+                category_text = i_tag.find_previous_sibling(string=True).strip()
+            else:
+                category_text = category_element.get_text(strip=True)
+
+            # "/"와 "("와 ")" 를 "_"로 대체
+            category_text = category_text.replace("(", "_").replace(")", "_").replace("/", "_")
+            category = Category[category_text].value
+
+            content_file = "notice_fs/FUN" + datetime.now().strftime("%Y%m%d%H%M%S") + ".txt"
+            s3_key = content_file
+
+            # 문자열을 바이트로 인코딩하여 S3에 업로드
+            s3.put_object(
+                Body=content.encode('utf-8'),
+                Bucket=configuration.bucket_name,
+                Key=s3_key
             )
-        else:
-            updated_time = None
+
+            # DB INSERT
             cursor.execute(
+                f"""
+                INSERT INTO notice_fs (title, content, image_url, url, created_at, updated_at, category, views)
+                VALUES ('{title}', '{"https://daitssu-bucket.s3.amazonaws.com/daitssu-dev/" + content_file}',
+                        '{json.dumps(image)}', '{content_url}', '{created_at}', '{updated_at}', '{category}', '{views}')
                 """
-                INSERT INTO programs (title, url, image_url, created_time, updated_time, content)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-                (
-                    data_title,
-                    "https://fun.ssu.ac.kr" + data_link.get("href"),
-                    "https://fun.ssu.ac.kr" + image,
-                    created_time,
-                    updated_time,
-                    content,
-                ),
             )
 
-        conn.commit()
+            conn.commit()
 
-    # 데이터베이스 연결 닫기
     conn.close()
 
-
-def fun_system_crawling():
-    try:
-        do_fun_system_crawling()
-    except:
-        return JSONResponse(content="Internal Server Error", status_code=500)
-    
-    return JSONResponse(content="OK", status_code=200)
-
-
 if __name__ == "__main__":
-    fun_system_crawling()
+    fun_system_crawling(10)

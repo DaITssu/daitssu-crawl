@@ -1,30 +1,48 @@
+from collections import defaultdict
+
 import requests
 import sqlalchemy
 from sqlalchemy import create_engine, Column, Integer, CHAR, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import sessionmaker, declarative_base
-from fastapi.responses import JSONResponse
 import datetime
 import configuration
 
-
 Base = declarative_base()
+
 db_url = sqlalchemy.engine.URL.create(  # db연결 url 생성
-    drivername="postgresql",
+    drivername="mysql+pymysql",
     username=configuration.db_user_name,
     password=configuration.db_pw,
     host=configuration.db_host,
     database=configuration.db_name
 )
 
-engine = create_engine(db_url)
+engine = create_engine(db_url)  # db 연결
 Session = sessionmaker(bind=engine)
 default_date = datetime.datetime(9999, 12, 31, 23, 59, 59)
 default_start_date = datetime.datetime(2023,1,1,00,00,00)
 current_time = datetime.datetime.now()
 
+class Users(Base):
+    __tablename__ = 'users'
+    __table_args__ = {"schema": "daitssu"}
+    id = Column(Integer, primary_key=True)
+    student_id = Column(CHAR(16))
+    name = Column(CHAR(32))
+    nickname = Column(CHAR(32))
+    department_id = Column(Integer, ForeignKey('daitssu.department.id'))
+    image_url = Column(CHAR(2048))
+    term = Column(Integer)
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
+    ssu_token = Column(CHAR(256))
+    refresh_token = Column(CHAR(256))
+    is_deleted = Column(Boolean)
+
+
 class Course(Base):
     __tablename__ = 'course'
-    __table_args__ = {"schema": "course"}
+    __table_args__ = {"schema": "daitssu"}
     course_code = Column(CHAR(32), nullable=False)
     id = Column(Integer, primary_key=True)
     name = Column(CHAR(64))
@@ -35,10 +53,10 @@ class Course(Base):
 
 class Video(Base):
     __tablename__ = 'video'
-    __table_args__ = {"schema": "course"}
+    __table_args__ = {"schema": "daitssu"}
     id = Column(Integer, primary_key=True)
     name = Column(CHAR(256))
-    course_id = Column(Integer, ForeignKey('course.course.id'))
+    course_id = Column(Integer, ForeignKey('daitssu.course.id'))
     due_at = Column(DateTime, default=default_date)
     start_at = Column(DateTime, default=default_date)
     created_at = Column(DateTime)
@@ -47,10 +65,10 @@ class Video(Base):
 
 class Assignment(Base):
     __tablename__ = 'assignment'
-    __table_args__ = {"schema": "course"}
+    __table_args__ = {"schema": "daitssu"}
     id = Column(Integer, primary_key=True)
     name = Column(CHAR(256))
-    course_id = Column(Integer, ForeignKey('course.course.id'))
+    course_id = Column(Integer, ForeignKey('daitssu.course.id'))
     due_at = Column(DateTime, default=default_date)
     start_at = Column(DateTime, default=default_date)
     created_at = Column(DateTime)
@@ -59,10 +77,10 @@ class Assignment(Base):
 
 class UserCourseRelation(Base):
     __tablename__ = 'user_course_relation'
-    __table_args__ = {"schema": "course"}
+    __table_args__ = {"schema": "daitssu"}
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer)
-    course_id = Column(Integer, ForeignKey('course.course.id'))
+    course_id = Column(Integer, ForeignKey('daitssu.course.id'))
     register_status = Column(CHAR(20))
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
@@ -70,17 +88,16 @@ class UserCourseRelation(Base):
 
 class Calendar(Base):
     __tablename__ = 'calendar'
-    __table_args__ = {"schema": "course"}
+    __table_args__ = {"schema": "daitssu"}
     id = Column(Integer, primary_key=True)
     type = Column(CHAR(32))
-    course = Column(CHAR(32))
+    course_id = Column(Integer, ForeignKey('daitssu.course.id'))
     due_at = Column(DateTime,default=default_date)
-    name = Column(CHAR(32))
+    name = Column(CHAR(256))
     is_completed = Column(Boolean)
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
     user_id = Column(Integer)
-
 
 
 class SmartCampus:
@@ -117,14 +134,18 @@ class SmartCampus:
 
     def save_user_course_data(self, user_id, course_id):
         existing_course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
-        course_id_temp = existing_course.id
-        existing_course_of_user = self.session.query(UserCourseRelation).filter_by(user_id=user_id,
-                                                                                   course_id=course_id_temp).first()
-        if existing_course_of_user is None:
-            put_course = UserCourseRelation(user_id=user_id, course_id=course_id_temp, register_status="수강중",
-                                            created_at=current_time, updated_at=current_time)
-            self.session.add(put_course)
-            self.session.commit()
+        if existing_course is not None:
+            course_id_temp = existing_course.id
+            existing_course_of_user = self.session.query(UserCourseRelation).filter_by(user_id=user_id,
+                                                                                       course_id=course_id_temp).first()
+            if existing_course_of_user is None:
+                put_course = UserCourseRelation(user_id=user_id, course_id=course_id_temp, register_status="ACTIVE",
+                                                created_at=current_time, updated_at=current_time)
+                self.session.add(put_course)
+                self.session.commit()
+        else:
+            print(f"Course with code {course_id} not found.")
+
     def get_calander_data(self, token, subject_num, user_id):
         subject = subject_num
         url = f"https://canvas.ssu.ac.kr/learningx/api/v1/courses/{subject}/attendance_items?include_detail=true"
@@ -132,6 +153,7 @@ class SmartCampus:
 
         summary_url = f"https://canvas.ssu.ac.kr/learningx/api/v1/courses/{subject}/attendance_items/summary?only_use_attendance=true"
         response_summary = requests.get(summary_url, headers=headers)
+        summary_data = ""
         if response_summary.status_code == 200:
             summary_data = response_summary.json().get("attendance_summaries", {})
 
@@ -153,8 +175,8 @@ class SmartCampus:
                                     status = True
                                     break
                         course_name = self.session.query(Course).filter_by(course_code=str(subject_num)).first()
-                        new_calendar_item = Calendar(type="대면수업",
-                                                     course=course_name.name,
+                        new_calendar_item = Calendar(type="OFFLINE_LECTURE",
+                                                     course_id=course_name.id,
                                                      due_at=schedule_time,
                                                      is_completed=status,
                                                      name=item.get("title"),
@@ -181,7 +203,11 @@ class SmartCampus:
             for module in data:
                 module_items = module["module_items"]
                 for item in module_items:
+
+
                     title = item["title"]
+                    if len(title) > 32:
+                        title = title
                     content_data = item.get("content_data", {})  # content_data 키가 없을 경우 빈 딕셔너리 반환
                     if content_data is not None:
                         item_content_data = content_data.get("item_content_data",
@@ -203,15 +229,12 @@ class SmartCampus:
                             due_at = datetime.datetime.strptime(item["content_data"]["due_at"], "%Y-%m-%dT%H:%M:%SZ") if \
                                 item["content_data"]["due_at"] else None
                             self.save_assignment_data(subject_num, title, unlock_at, due_at)
-                        elif item["content_type"] == "quiz":
-                            due_at = datetime.datetime.strptime(item["content_data"]["due_at"], "%Y-%m-%dT%H:%M:%SZ") if \
-                                item["content_data"]["due_at"] else None
-                            self.save_quiz_data(subject_num, title, due_at)
 
             self.session.commit()
 
     def save_video_data(self, course_id, title, unlock_at, due_at):
         existing_course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
+
         course_id_temp = existing_course.id
         existing_data = self.session.query(Video).filter_by(course_id=course_id_temp, name=title).first()
         if due_at is None:
@@ -234,6 +257,8 @@ class SmartCampus:
                 existing_data.updated_at = current_time
                 existing_course.updated_at = current_time
                 self.session.commit()
+
+
         self.session.commit()
 
     def save_assignment_data(self, course_id, title, unlock_at, due_at):
@@ -263,62 +288,195 @@ class SmartCampus:
 
         self.session.commit()
 
-    def save_quiz_data(self, course_id, title, due_at):
-        existing_course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
-        course_id_temp = existing_course.id
-        existing_data = self.session.query(Calendar).filter_by(course=existing_course.name, type="퀴즈", due_at=due_at).first()
-        if due_at is None:
-            due_at = default_date
-        if existing_data is None:
-            new_calendar_item = Calendar(type="퀴즈",
-                                         course=existing_course.name,
-                                         due_at=due_at,
-                                         name=title,
-                                         created_at=current_time,
-                                         updated_at=current_time
-                                         )
-            self.session.add(new_calendar_item)
-            existing_course.updated_at = current_time
-            self.session.commit()
-        else:
-            if (
-                existing_data.due_at != due_at
-            ):
-                existing_data.due_at = due_at
-                existing_data.updated_at = current_time
-                existing_course.updated_at = current_time
-                self.session.commit()
-        self.session.commit()
+    def save_to_do_to_calendar(self, token, user_id):
+        url = "https://canvas.ssu.ac.kr/learningx/api/v1/learn_activities/to_dos?term_ids[]=31"
+        headers = {"Authorization": "Bearer " + token}
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            data_dict = response.json()  # JSON 응답을 파이썬의 딕셔너리로 변환
+
+            for module in data_dict.get("to_dos", []):
+    
+                course_id = module.get("course_id")
+
+                assignment = defaultdict(list)
+                video = defaultdict(list)
+                quiz = defaultdict(list)
+
+                session = Session()
+                course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
+
+                # 필요한 데이터 가져오기
+                query = session.query(Calendar).filter_by(course_id=course.id)
+                calendars = query.all()
+
+                # 데이터를 HashMap에 저장
+                for calendar in calendars:
+                    if calendar.type == 'ASSIGNMENT':
+                        assignment[calendar.name].append(calendar.due_at)
+                    elif calendar.type == 'VIDEO':
+                        video[calendar.name].append(calendar.due_at)
+                    elif calendar.type == 'QUIZ':
+                        quiz[calendar.name].append(calendar.due_at)
+
+                if course_id:
+                    activities = module.get("activities", {})
+                    last_assignment = activities.get("total_unsubmitted_assignments")
+                    last_video = activities.get("total_incompleted_movies")
+
+                    if last_assignment != 0 or last_video != 0:
+                        todo_list = module.get("todo_list", [])
+
+                        for todo in todo_list:
+                            if todo.get("component_type") == "assignment" and not todo.get(
+                                    "generated_from_lecture_content"):
+                                title = todo.get('title')
+                                due_at = todo.get('due_date')
+                                existing_data = self.session.query(Calendar).filter_by(name=title,
+                                                                                       due_at=due_at).first()
+
+                                if existing_data is None:
+                                    course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
+                                    new_calendar_item = Calendar(
+                                        type="ASSIGNMENT",
+                                        course_id=course.id,
+                                        due_at=due_at,
+                                        is_completed=False,
+                                        name=title,
+                                        created_at=current_time,
+                                        updated_at=current_time,
+                                        user_id=user_id
+                                    )
+                                    course.updated_at = current_time
+                                    self.session.add(new_calendar_item)
+                                elif title in assignment:
+                                    if existing_data.due_at != due_at:
+                                        change_data = self.session.query(Calendar).filter_by(name=title).first()
+                                        change_data.due_at = due_at
+                                        course = self.session.query(Course).filter_by(
+                                            course_code=str(course_id)).first()
+                                        course.updated_at = current_time
+                                    assignment.pop(title)  # 해당 assignment를 처리했으므로 pop
+
+                            elif todo.get("component_type") == "commons":
+                                title = todo.get('title')
+                                due_at = todo.get('due_date')
+                                existing_data = self.session.query(Calendar).filter_by(name=title,
+                                                                                       due_at=due_at).first()
+
+                                if existing_data is None:
+                                    course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
+                                    new_calendar_item = Calendar(
+                                        type="VIDEO",
+                                        course_id=course.id,
+                                        due_at=due_at,
+                                        is_completed=False,
+                                        name=title,
+                                        created_at=current_time,
+                                        updated_at=current_time,
+                                        user_id=user_id
+                                    )
+                                    course.updated_at = current_time
+                                    self.session.add(new_calendar_item)
+                                elif title in video:
+                                    if existing_data.due_at != due_at:
+                                        change_data = self.session.query(Calendar).filter_by(name=title).first()
+                                        change_data.due_at = due_at
+                                        course = self.session.query(Course).filter_by(
+                                            course_code=str(course_id)).first()
+                                        course.updated_at = current_time
+                                    video.pop(title)  # 해당 video를 처리했으므로 pop
+
+                            elif todo.get("component_type") == "quiz":
+                                title = todo.get('title')
+                                due_at = todo.get('due_date')
+                                existing_data = self.session.query(Calendar).filter_by(name=title,
+                                                                                       due_at=due_at).first()
+
+                                if existing_data is None:
+                                    course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
+                                    new_calendar_item = Calendar(
+                                        type="QUIZ",
+                                        course_id=course.id,
+                                        due_at=due_at,
+                                        is_completed=False,
+                                        name=title,
+                                        created_at=current_time,
+                                        updated_at=current_time,
+                                        user_id=user_id
+                                    )
+                                    course.updated_at = current_time
+                                    self.session.add(new_calendar_item)
+                                elif title in quiz:
+                                    if existing_data.due_at != due_at:
+                                        change_data = self.session.query(Calendar).filter_by(name=title).first()
+                                        change_data.due_at = due_at
+                                        course = self.session.query(Course).filter_by(
+                                            course_code=str(course_id)).first()
+                                        course.updated_at = current_time
+                                    quiz.pop(title)  # 해당 quiz를 처리했으므로 pop
+
+                        # 남은 데이터 처리
+                        for assign in assignment.keys():
+                            change_data = self.session.query(Calendar).filter_by(name=assign).first()
+                            if change_data.is_completed == False:
+                                change_data.is_completed = True
+                            course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
+                            course.updated_at = current_time
+
+                        for video in video.keys():
+                            change_data = self.session.query(Calendar).filter_by(name=video).first()
+                            if change_data.is_completed == False:
+                                change_data.is_completed = True
+                            course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
+                            course.updated_at = current_time
+
+                        for quiz in quiz.keys():
+                            change_data = self.session.query(Calendar).filter_by(name=quiz).first()
+                            if change_data.is_completed == False:
+                                change_data.is_completed = True
+                            course = self.session.query(Course).filter_by(course_code=str(course_id)).first()
+                            course.updated_at = current_time
+
+                    else:
+                        print("이 모듈에서는 Course ID를 찾을 수 없습니다.")
 
 
-def smart_campus_crawling(token, user_id):
-        Session = sessionmaker(bind=engine)
-        session = Session()
-        smart_campus = SmartCampus(session)
-        # Get subjects and save them to the database
-        smart_campus.course(token, user_id)
+def smart_campus_crawling(token, student_id):
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    smart_campus = SmartCampus(session)
+    
+    user_id = session.query(Users).filter_by(student_id=student_id).first().id
 
-        courses = session.query(UserCourseRelation).all()
+    smart_campus.course(token, user_id)
+    courses = session.query(UserCourseRelation).all()
 
-        for course in courses:
+    for course in courses:
+        real_id = session.query(Course).filter_by(id=course.course_id).first()
+        subject_num = int(real_id.course_code)
+        smart_campus.get_date(token, subject_num)
 
-            real_id = session.query(Course).filter_by(id=course.course_id).first()
-            subject_num = int(real_id.course_code)
-            smart_campus.get_date(token, subject_num)
-        for course in courses:
+    for course in courses:
+        real_id = session.query(Course).filter_by(id=course.course_id).first()
+        subject_num = int(real_id.course_code)
 
-            real_id = session.query(Course).filter_by(id=course.course_id).first()
-            subject_num = int(real_id.course_code)
+        smart_campus.get_calander_data(token, subject_num, user_id)
+    smart_campus.save_user_course_data(token, user_id)
+    smart_campus.save_to_do_to_calendar(token, user_id)
 
-            smart_campus.get_calander_data(token, subject_num, user_id)
-        # 모든 작업이 정상적으로 완료되면 commit 수행
-        session.commit()
+    # 모든 작업이 정상적으로 완료되면 commit 수행
+    session.commit()
 
+    return "Success"
 
 
 if __name__ == "__main__":
-    token = "테스트 토큰 입력"
-    user_id = "유저 아이디 입력"
-    smart_campus_crawling(token, user_id)
+    # token = "테스트 토큰 입력"
+    # student_id = "학번 입력"
 
+    token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2xvZ2luIjoiMjAyMTIyMjciLCJyb2xlIjoxLCJjcmVhdGVkX2F0IjoxNzA1NjQ3NjQ5LCJpYXQiOjE3MDU2NDc2NDl9.oSeSVSkN8pgbzkPBTk_XroOFNlBFrpE-pZYE20XQBNQ"
+    student_id = "20212227"
 
+    smart_campus_crawling(token, student_id)
