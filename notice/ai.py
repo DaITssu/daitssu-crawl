@@ -9,8 +9,8 @@ import boto3
 
 import configuration
 
-from common.control_db import update_notification
-from common.notification import Notification
+from notice.common.control_db import update_notification
+from notice.common.notification import Notification
 
 AI_BASE_URL = "http://aix.ssu.ac.kr/"
 
