@@ -451,18 +451,14 @@ def smart_campus_crawling(token, student_id):
     user_id = session.query(Users).filter_by(student_id=student_id).first().id
 
     smart_campus.course(token, user_id)
-    courses = session.query(UserCourseRelation).all()
+    courses = session.query(UserCourseRelation).filter_by(user_id=user_id)
 
     for course in courses:
         real_id = session.query(Course).filter_by(id=course.course_id).first()
         subject_num = int(real_id.course_code)
         smart_campus.get_date(token, subject_num)
-
-    for course in courses:
-        real_id = session.query(Course).filter_by(id=course.course_id).first()
-        subject_num = int(real_id.course_code)
-
         smart_campus.get_calander_data(token, subject_num, user_id)
+
     smart_campus.save_user_course_data(token, user_id)
     smart_campus.save_to_do_to_calendar(token, user_id)
 
