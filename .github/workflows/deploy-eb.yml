@@ -1,0 +1,46 @@
+name: Deploy to Elastic Beanstalk
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - feat/beanstalk
+
+env:
+  AWS_REGION: ap-northeast-2
+  DEPLOYMENT_PACKAGE: application.zip
+  APPLICATION_NAME: daitssu-api
+  ENVIRONMENT_NAME: daitssu-api-develop
+
+jobs:
+  deploy:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    if: "!contains(github.event.head_commit.message, '[skip deploy]')"
+    name: deploy
+    runs-on: ubuntu-latest
+    env:
+      CI: 1
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Python setup
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+
+      - name: EB CLI
+        run: pip3 install awsebcli --upgrade --user
+
+      - name: Packaging
+        run : zip -r ${{ env.DEPLOYMENT_PACKAGE }} .
+
+      - name: Deploy
+        run: eb deploy ${{ env.ENVIRONMENT_NAME }} --region ${{ env.AWS_REGION }} --staged
+      
