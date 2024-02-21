@@ -33,7 +33,7 @@ jobs:
       - name: Add Configuration
         env:
           CRAWL_DEV_SECRET: ${{secrets.CRAWL_DEV_CONFIGURATION}}
-        run: echo -e $CRAWL_DEV_SECRET > configuration.py
+        run: echo $CRAWL_DEV_SECRET | base64 --decode > configuration.py
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
