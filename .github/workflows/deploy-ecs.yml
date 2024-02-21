@@ -72,8 +72,8 @@ jobs:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           region: ap-northeast-2
-          application_name: daitssu-crawler-develop
-          environment_name: daitssu-crawler-develop
+          application_name: daitssu-crawl
+          environment_name: daitssu-crawl-develop
           version_label: earth-docker-${{steps.current-time.outputs.formattedTime}}
           deployment_package: Dockerrun.aws.json
           wait_for_environment_recovery: 300
