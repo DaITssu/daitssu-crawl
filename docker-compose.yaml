@@ -5,3 +5,4 @@ services:
     image: 268306063505.dkr.ecr.ap-northeast-2.amazonaws.com/dev-daitssu-crawl:latest
     ports:
       - "5000:5000"
+    env_file: .env
