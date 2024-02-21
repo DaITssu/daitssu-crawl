@@ -65,13 +65,6 @@ jobs:
           format: YYYYMMDD_HH-mm-ss
           utcOffset: "+09:00"
 
-      - name: Generate deployment package
-        run: |
-          mkdir -p deploy/.platform/nginx/conf.d
-          cp Dockerrun.aws.json deploy/Dockerrun.aws.json
-          cp .platform/nginx/conf.d/proxy.conf deploy/.platform/nginx/conf.d/proxy.conf
-          cd deploy && zip -r deploy.zip .
-
       - name: Deploy
         id: deploy
         uses: einaregilsson/beanstalk-deploy@v20
@@ -82,5 +75,5 @@ jobs:
           application_name: daitssu-crawler-develop
           environment_name: daitssu-crawler-develop
           version_label: earth-docker-${{steps.current-time.outputs.formattedTime}}
-          deployment_package: deploy/deploy.zip
+          deployment_package: Dockerrun.aws.json
           wait_for_environment_recovery: 300
