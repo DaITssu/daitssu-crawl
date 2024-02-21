@@ -75,5 +75,5 @@ jobs:
           application_name: daitssu-crawl
           environment_name: daitssu-crawl-develop
           version_label: earth-docker-${{steps.current-time.outputs.formattedTime}}
-          deployment_package: Dockerrun.aws.json
+          deployment_package: docker-compose.yaml
           wait_for_environment_recovery: 300
