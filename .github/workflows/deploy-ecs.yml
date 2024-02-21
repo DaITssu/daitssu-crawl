@@ -65,6 +65,12 @@ jobs:
           format: YYYYMMDD_HH-mm-ss
           utcOffset: "+09:00"
 
+      - name: Generate deployment package
+        run: |
+          mkdir -p deploy
+          cp Dockerrun.aws.json deploy/Dockerrun.aws.json
+          cd deploy && zip -r deploy.zip .
+
       - name: Deploy
         id: deploy
         uses: einaregilsson/beanstalk-deploy@v20
@@ -72,8 +78,8 @@ jobs:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           region: ap-northeast-2
-          application_name: daitssu-crawl
-          environment_name: daitssu-crawl-develop
+          application_name: daitssu-crawler
+          environment_name: daitssu-crawler-develop
           version_label: earth-docker-${{steps.current-time.outputs.formattedTime}}
-          deployment_package: docker-compose.yaml
+          deployment_package: deploy/deploy.zip
           wait_for_environment_recovery: 300
