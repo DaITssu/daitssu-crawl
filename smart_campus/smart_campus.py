@@ -104,11 +104,8 @@ class SmartCampus:
     def __init__(self, session):
         self.session = session
 
-    color_list = ['FF8DC4', 'FF7171', 'FF9E68', 'FFD057', 'B7E532', '35CC7B', '73E4DE', '6197FF', 'B69BE3', 'A48172']
-    over_color = 'BDBDBD'
-
     def course(self, token, user_id):
-        url = "https://canvas.ssu.ac.kr/learningx/api/v1/learn_activities/courses?term_ids[]=31"
+        url = "https://canvas.ssu.ac.kr/learningx/api/v1/learn_activities/courses?term_ids[]=33"
         headers = {"Authorization": "Bearer " + token}
         response = requests.get(url, headers=headers)
         cnt = 1
@@ -118,13 +115,12 @@ class SmartCampus:
                 course_title = module["name"]
                 course_title = course_title
                 course_id = module["id"]
-                color_code = self.color_list[cnt - 1] if cnt < 11 else self.over_color
-                self.save_course_data(course_id, course_title, color_code)
+                self.save_course_data(course_id, course_title)
                 self.save_user_course_data(user_id, course_id)
                 cnt += 1
             self.session.commit()
 
-    def save_course_data(self, course_id, course_title, color_code):
+    def save_course_data(self, course_id, course_title):
         existing_course = self.session.query(Course).filter_by(name=course_title).first()
         if existing_course is None:
             new_subject = Course(course_code=str(course_id), term=2, name=course_title, created_at=current_time,
@@ -469,10 +465,7 @@ def smart_campus_crawling(token, student_id):
 
 
 if __name__ == "__main__":
-    # token = "테스트 토큰 입력"
-    # student_id = "학번 입력"
-
-    token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2xvZ2luIjoiMjAyMTIyMjciLCJyb2xlIjoxLCJjcmVhdGVkX2F0IjoxNzA1NjQ3NjQ5LCJpYXQiOjE3MDU2NDc2NDl9.oSeSVSkN8pgbzkPBTk_XroOFNlBFrpE-pZYE20XQBNQ"
-    student_id = "20212227"
+    token = "테스트 토큰 입력"
+    student_id = "학번 입력"
 
     smart_campus_crawling(token, student_id)
